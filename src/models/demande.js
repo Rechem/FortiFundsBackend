@@ -79,6 +79,7 @@ Demande.init({
             }
         }
     },
+    //TODO REMOVE ?
     seenByAdmin: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
@@ -93,6 +94,10 @@ Demande.init({
         type: DataTypes.STRING,
         allowNull: false,
     },
+    avatar : {
+        type: DataTypes.STRING,
+        allowNull: true,
+    }
 }, {
     //this telling sequelize to not pluralize table name
     tableName: 'demandes',

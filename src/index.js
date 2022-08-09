@@ -3,11 +3,11 @@ require('./database/connection')
 require('./models/initialize')
 const dotenv = require('dotenv')
 const express = require('express')
-const userRouter = require('./routers/user')
-const demandeRouter = require('./routers/demande')
+const userRouter = require('./routers/user/user')
+const demandeRouter = require('./routers/demande/demande')
 const cookieParser = require('cookie-parser')
 const cors = require('cors')
-const { ApiError } = require('./core/api-error')
+const { ApiError, InternalError } = require('./core/api-error')
 
 dotenv.config();
 

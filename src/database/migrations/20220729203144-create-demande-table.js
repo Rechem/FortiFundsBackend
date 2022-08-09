@@ -70,6 +70,10 @@ module.exports = {
           key: 'idUser',
         }
       },
+      avatar: {
+        type: DataTypes.STRING,
+        allowNull: true
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE,

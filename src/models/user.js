@@ -6,14 +6,6 @@ const _ = require('lodash')
 
 class User extends Model {
 
-    // async toJSON() {
-    //     let user = super.toJSON();
-    //     const role = await Role.findByPk(user.idRole)
-    //     user.role = role.nomRole
-    //     delete user.idRole
-    //     return _.pick(user, ["idUser", "completedSignUp", "role"])
-    // }
-
     getOwnerId (){
         return this.idUser
     }
@@ -112,6 +104,10 @@ User.init({
         allowNull: false,
         defaultValue: false,
     },
+    avatar : {
+        type : DataTypes.STRING,
+        allowNull : true
+    }
 },
     {
         //this telling sequelize to not pluralize table name

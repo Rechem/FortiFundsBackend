@@ -9,7 +9,7 @@ const { BadRequestError, InternalError, AuthFailureError } = require('../core/ap
 const { SuccessResponse } = require('../core/api-response')
 
 const signUpController = asyncHandler(async (req, res, next) => {
-
+console.log("nigger");
     const [user, built] = await User.findOrBuild({
         where: { email: req.body.email },
         defaults: { ...req.body, }
@@ -30,7 +30,7 @@ const signUpController = asyncHandler(async (req, res, next) => {
     user.roleId = role.idRole;
     try {
         await user.save()
-        req.user = await User.authenticationResponse(user)
+        req.user = user
         return next()
 
     } catch (e) {
@@ -50,7 +50,7 @@ const signInController = asyncHandler(async (req, res, next) => {
     if (user) {
         const isMatch = await bcryptjs.compare(req.body.password, user.password)
         if (isMatch) {
-            req.user = await User.authenticationResponse(user)
+            req.user = user
             return next()
         }
     }

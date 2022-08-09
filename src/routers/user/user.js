@@ -1,15 +1,15 @@
 const express = require('express')
 const bcryptjs = require('bcryptjs')
-const User = require('../models/user')
-const Role = require('../models/role')
+const User = require('../../models/user')
+const Role = require('../../models/role')
 const { ValidationError } = require('sequelize');
-const signUserIn = require('../helpers/sign-user-in')
-const { jwtVerifyAuth } = require('../helpers/jwt-verify-auth');
-const { adminRoles } = require('../models/utils')
-const { SuccessResponse } = require('../core/api-response')
-const { InternalError, BadRequestError } = require('../core/api-error')
-const { signUpController, signInController, signOutController } = require('../controllers/user');
-const asyncHandler = require('../helpers/async-handler');
+const signUserIn = require('../../helpers/sign-user-in')
+const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth');
+const { adminRoles } = require('../../models/utils')
+const { SuccessResponse } = require('../../core/api-response')
+const { InternalError, BadRequestError } = require('../../core/api-error')
+const { signUpController, signInController, signOutController } = require('../../controllers/user');
+const asyncHandler = require('../../helpers/async-handler');
 
 
 const router = new express.Router()

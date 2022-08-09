@@ -18,9 +18,11 @@ module.exports = {
      * Example:
      * await queryInterface.bulkDelete('People', null, {});
      */
-    await Role.destroy({
-      where: {},
-      truncate: true
-    })
+    await queryInterface.bulkDelete('roles', {[Op.or]: [
+      {nomRole: adminRoles.roleSimpleUser},
+      {nomRole: adminRoles.roleModerator},
+      {nomRole: adminRoles.roleAdmin}
+    ]});
+
   }
 };

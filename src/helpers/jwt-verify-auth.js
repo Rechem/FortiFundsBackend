@@ -3,9 +3,10 @@ const jwt = require('jsonwebtoken')
 const createCookie = require('../core/create-cookie')
 const { TokenExpiredError } = require('jsonwebtoken')
 const { removeTokens } = require('../core/generate-token')
+const asyncHandler = require('./async-handler')
 const {BadRequestError, AccessTokenError, AuthFailureError, InternalError} =  require('../core/api-error')
 
-const jwtVerifyAuth = async (req, res, next) => {
+const jwtVerifyAuth = asyncHandler(async (req, res, next) => {
     const token = req.cookies.__act;
     if (!token) {
         throw new AccessTokenError()
@@ -44,32 +45,32 @@ const jwtVerifyAuth = async (req, res, next) => {
     } catch (err) {
         if (err instanceof TokenExpiredError) {
             try {
-                const { __rt } = req.cookies;
-                const [accessToken, newRefreshToken] = await refreshToken(req, __rt);
-                if (accessToken && newRefreshToken) {
+                const [accessToken, newRefreshToken] = await refreshToken(req);
+
                     createCookie(
                         res,
                         accessToken,
                         "__act",
                         process.env.ACCESS_TOKEN_COOKIE_EXPIRES
                     );
+
                     createCookie(
                         res,
                         newRefreshToken,
                         "__rt",
                         process.env.REFRESH_TOKEN_COOKIE_EXPIRES
                     );
+
                     next();
-                }
             } catch (e) {
                 removeTokens(res)
-                return res.status(401).json({ status: "erreur", message: "Session expired, please log in" });
+                throw new AuthFailureError("Session expirée, Veuillez vous reconnecter." );
             }
         } else {
             removeTokens(res)
-            return res.status(401).json({ status: "erreur", message: "Unauthorized, please login" });
+            throw new AuthFailureError("Session expirée, Veuillez vous reconnecter." );
         }
     }
-}
+})
 
 module.exports = { jwtVerifyAuth }

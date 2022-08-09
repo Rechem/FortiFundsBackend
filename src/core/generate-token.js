@@ -29,9 +29,9 @@ createTokens = (payload, refreshSecret) => {
     return [token, refreshToken];
 };
 
-refreshToken = async (req, __rt) => {
-    console.log("\nrefreshing.....\n");
-    const decoded = jwt.decode(__rt);
+refreshToken = async (req) => {
+    console.log("\nrefreshing...\n");
+    const decoded = jwt.decode(req.cookies.__rt);
 
     if (!decoded.idUser) {
         throw new InternalError("User not found in jwt payload");
@@ -52,15 +52,13 @@ refreshToken = async (req, __rt) => {
     const refreshSecret =
         process.env.JWT_REFRESH_SECRET + user.password;
     try {
-        jwt.verify(__rt, refreshSecret);
+        jwt.verify(req.cookies.__rt, refreshSecret);
     } catch (err) {
         throw new BadTokenError();
     }
 
     return createTokens(
-        //returns a copy of the object that filtered using the given key
-        //add verified ? blocked ? role ?
-        await user.authenticationResponse(),
+        await User.authenticationResponse(user),
         refreshSecret
     );
 };

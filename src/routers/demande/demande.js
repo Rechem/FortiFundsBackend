@@ -1,12 +1,12 @@
 const express = require('express')
 const path = require('path')
 const multer = require('multer')
-const Demande = require('../models/demande');
-const User = require('../models/user');
-const { jwtVerifyAuth } = require('../helpers/jwt-verify-auth');
-const asyncHandler = require('../helpers/async-handler')
-const { SuccessCreationResponse, SuccessResponse } = require('../core/api-response')
-const { BadRequestError, InternalError, NotFoundError } = require('../core/api-error')
+const Demande = require('../../models/demande');
+const User = require('../../models/user');
+const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth');
+const asyncHandler = require('../../helpers/async-handler')
+const { SuccessCreationResponse, SuccessResponse } = require('../../core/api-response')
+const { BadRequestError, InternalError, NotFoundError } = require('../../core/api-error')
 const { ValidationError } = require('sequelize')
 
 const storage = multer.diskStorage({
@@ -59,14 +59,12 @@ router.post('/', jwtVerifyAuth, upload, asyncHandler(async (req, res, next) => {
         await Demande.create({ ...demande })
 
         new SuccessCreationResponse('Demande crée avec succès').send(res)
-        // res.status(201).json({ satus: 'succes', demande })
 
     } catch (e) {
         if (e instanceof ValidationError) {
             throw new BadRequestError(e.errors[0].message)
         } else
             throw e
-        // res.status(400).json({ satus: 'erreur', message: e.toString() })
     }
 
 }))
