@@ -58,7 +58,7 @@ const WILAYA =
 {numero : 57 , designation: 'In Salah'},
 {numero : 58 , designation: 'In Guezzam'}]
 
-const adminRoles = {
+const roles = {
     roleSimpleUser : 'simpleUser',
     roleModerator : 'moderator',
     roleAdmin : 'admin',
@@ -67,5 +67,5 @@ const adminRoles = {
 
 module.exports = {
     WILAYA,
-    adminRoles
+    roles
 }

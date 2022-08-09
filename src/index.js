@@ -5,6 +5,7 @@ const dotenv = require('dotenv')
 const express = require('express')
 const userRouter = require('./routers/user/user')
 const demandeRouter = require('./routers/demande/demande')
+const membreRouter = require('./routers/commissions/membres/membre')
 const cookieParser = require('cookie-parser')
 const cors = require('cors')
 const { ApiError, InternalError } = require('./core/api-error')
@@ -36,6 +37,7 @@ app.use(cookieParser());
 
 app.use('/users', userRouter)
 app.use('/demandes', demandeRouter)
+app.use('/commissions/membres', membreRouter)
 
 app.use((err, req, res, next) => {
     if (err instanceof ApiError) {

@@ -6,16 +6,18 @@ const _ = require('lodash')
 
 class User extends Model {
 
-    getOwnerId (){
-        return this.idUser
-    }
-
     static async authenticationResponse(user) {
         // let user = super.toJSON();
         // Role.findByPk(user.roleId)
-        const role = await Role.findOne({where: {idRole : user.roleId}})
-        user.role = role.nomRole
+        const role = await User.getRole(user)
+        user.role = role
         return _.pick(user, ["idUser", "completedSignUp", "role"])
+    }
+
+    static async getRole(user) {
+        const role = await Role.findOne({where : {idRole : user.roleId}})
+        return role.nomRole
+
     }
 }
 
@@ -104,9 +106,9 @@ User.init({
         allowNull: false,
         defaultValue: false,
     },
-    avatar : {
-        type : DataTypes.STRING,
-        allowNull : true
+    avatar: {
+        type: DataTypes.STRING,
+        allowNull: true
     }
 },
     {

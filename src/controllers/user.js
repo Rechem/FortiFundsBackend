@@ -2,7 +2,7 @@ const bcryptjs = require('bcryptjs')
 const User = require('../models/user')
 const Role = require('../models/role')
 const { ValidationError } = require('sequelize');
-const { adminRoles } = require('../models/utils')
+const { roles } = require('../models/utils')
 const { removeTokens } = require('../core/generate-token')
 const asyncHandler = require('../helpers/async-handler')
 const { BadRequestError, InternalError, AuthFailureError } = require('../core/api-error')
@@ -20,7 +20,7 @@ console.log("nigger");
     }
 
     const role = await Role.findOne({
-        where: { nomRole: adminRoles.roleSimpleUser }
+        where: { nomRole: roles.roleSimpleUser }
     })
 
     if (!role) {

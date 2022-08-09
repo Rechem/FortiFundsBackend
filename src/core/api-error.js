@@ -58,8 +58,15 @@ class AuthFailureError extends ApiError {
     }
 }
 
+class UnauthroizedError extends ApiError {
+    constructor(message = 'Non autorisé, veuillez vous connecter.') {
+        super(ErrorType.UNAUTHORIZED, message);
+    }
+}
+
 class InternalError extends ApiError {
     constructor(message = 'Internal error') {
+        console.log(message);
         super(ErrorType.INTERNAL, message);
     }
 }
@@ -123,5 +130,6 @@ module.exports = {
     BadTokenError,
     TokenExpiredError,
     NoDataError,
-    AccessTokenError
+    AccessTokenError,
+    UnauthroizedError
 }

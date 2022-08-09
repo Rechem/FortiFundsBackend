@@ -6,8 +6,9 @@ const User = require('../../models/user');
 const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth');
 const asyncHandler = require('../../helpers/async-handler')
 const { SuccessCreationResponse, SuccessResponse } = require('../../core/api-response')
-const { BadRequestError, InternalError, NotFoundError } = require('../../core/api-error')
+const { BadRequestError, UnauthroizedError, NotFoundError } = require('../../core/api-error')
 const { ValidationError } = require('sequelize')
+const { roles } = require('../../models/utils')
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -30,7 +31,7 @@ const upload = multer({
         const extname = fileTypes.test(path.extname(file.originalname))
         if (mimeType && extname) {
             return cb(null, true)
-        }else
+        } else
             cb(null, false, new BadRequestError('Format de fichier invalide.'))
     }
 }).single('businessPlan')
@@ -41,7 +42,7 @@ router.post('/', jwtVerifyAuth, upload, asyncHandler(async (req, res, next) => {
     //TODO FIX NAME SUFFIX (DATE)
     try {
 
-        if(!req.file)
+        if (!req.file)
             throw new BadRequestError('Invalid File Format')
 
         const demande = {
@@ -58,7 +59,7 @@ router.post('/', jwtVerifyAuth, upload, asyncHandler(async (req, res, next) => {
 
         await Demande.create({ ...demande })
 
-        new SuccessCreationResponse('Demande crée avec succès').send(res)
+        new SuccessCreationResponse('Demande créée avec succès').send(res)
 
     } catch (e) {
         if (e instanceof ValidationError) {
@@ -70,30 +71,34 @@ router.post('/', jwtVerifyAuth, upload, asyncHandler(async (req, res, next) => {
 }))
 
 router.get('/user/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
-
     const userId = req.query.idUser
-    let searchInput = req.query.searchInput || ''
+    if (req.user.role === roles.roleAdmin || req.user.role === roles.roleModerator
+        || (req.user.role === roles.roleSimpleUser && userId === req.user.idUser)) {
 
-    let demandes = await Demande.findAll({
-        where: {
-            //use req.user from token middleware
-            userId,
+        let searchInput = req.query.searchInput || ''
+
+        let demandes = await Demande.findAll({
+            where: {
+                //use req.user from token middleware
+                userId,
+            }
+        });
+
+        if (demandes.length > 0 && searchInput !== '') {
+            searchInput = searchInput.trim()
+            demandes = demandes.filter(e => {
+                return e.denominationCommerciale.includes(searchInput)
+                    || e.nbEmploye.toString().includes(searchInput)
+                    || e.dateCreation.toString().includes(searchInput)
+                    || e.nif.includes(searchInput)
+                    || e.nbLabel.includes(searchInput)
+                    || e.formeJuridique.includes(searchInput)
+            })
         }
-    });
-
-    if (demandes.length > 0 && searchInput !== '') {
-        searchInput = searchInput.trim()
-        demandes = demandes.filter(e => {
-            return e.denominationCommerciale.includes(searchInput)
-                || e.nbEmploye.toString().includes(searchInput)
-                || e.dateCreation.toString().includes(searchInput)
-                || e.nif.includes(searchInput)
-                || e.nbLabel.includes(searchInput)
-                || e.formeJuridique.includes(searchInput)
-        })
+        new SuccessResponse('Demandes utilisateur', { demandes }).send(res)
+    } else {
+        throw new UnauthroizedError()
     }
-    new SuccessResponse('Demandes utilisateur', { demandes }).send(res)
-    // res.status(200).json({ status: "success", demandes })
 }))
 
 router.get('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
