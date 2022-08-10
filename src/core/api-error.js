@@ -66,7 +66,6 @@ class UnauthroizedError extends ApiError {
 
 class InternalError extends ApiError {
     constructor(message = 'Internal error') {
-        console.log(message);
         super(ErrorType.INTERNAL, message);
     }
 }

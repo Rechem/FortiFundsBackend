@@ -6,6 +6,7 @@ const express = require('express')
 const userRouter = require('./routers/user/user')
 const demandeRouter = require('./routers/demande/demande')
 const membreRouter = require('./routers/commissions/membres/membre')
+const commissionRouter = require('./routers/commissions/commission')
 const cookieParser = require('cookie-parser')
 const cors = require('cors')
 const { ApiError, InternalError } = require('./core/api-error')
@@ -37,16 +38,20 @@ app.use(cookieParser());
 
 app.use('/users', userRouter)
 app.use('/demandes', demandeRouter)
+app.use('/commissions', commissionRouter)
 app.use('/commissions/membres', membreRouter)
 
 app.use((err, req, res, next) => {
+    console.log(err.stack);
+    console.log(err.message);
     if (err instanceof ApiError) {
         ApiError.handle(err, res);
     } else {
-        if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === "development") {
             res.status(500).send(err.message);
-        } else
+        } else{
             ApiError.handle(new InternalError(), res);
+        }
     }
 });
 

@@ -1,4 +1,5 @@
 const User = require('../models/user')
+const Role = require('../models/role')
 const jwt = require('jsonwebtoken')
 const createCookie = require('../core/create-cookie')
 const { TokenExpiredError } = require('jsonwebtoken')
@@ -19,7 +20,8 @@ const jwtVerifyAuth = asyncHandler(async (req, res, next) => {
         const user = await User.findOne({
             where: {
                 idUser: decoded.idUser
-            }
+            },
+            include : [{ model: Role, attributes: ['nomRole'], as : 'role' }]
         })
 
         //TODO NOT TESTED
@@ -29,7 +31,8 @@ const jwtVerifyAuth = asyncHandler(async (req, res, next) => {
             throw new InternalError("User not found")
         }
 
-        req.user = user
+        req.user = user.toJSON()
+
         //might have to check how to go from string to date and vice verca
         const passwordChangeAt = Math.round(
             new Date(`${user.toJSON().changedPassword}`).getTime() / 1000

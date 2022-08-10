@@ -57,6 +57,8 @@ router.post('/', jwtVerifyAuth, upload, asyncHandler(async (req, res, next) => {
             userId: req.user.idUser,
         }
 
+        console.log(req.body.dateCreation);
+
         await Demande.create({ ...demande })
 
         new SuccessCreationResponse('Demande créée avec succès').send(res)
@@ -72,8 +74,9 @@ router.post('/', jwtVerifyAuth, upload, asyncHandler(async (req, res, next) => {
 
 router.get('/user/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     const userId = req.query.idUser
-    if (req.user.role === roles.roleAdmin || req.user.role === roles.roleModerator
-        || (req.user.role === roles.roleSimpleUser && userId === req.user.idUser)) {
+    const role = req.user.role
+    if (role === roles.roleAdmin || role === roles.roleModerator
+        || (role === roles.roleSimpleUser && userId == req.user.idUser)) {
 
         let searchInput = req.query.searchInput || ''
 

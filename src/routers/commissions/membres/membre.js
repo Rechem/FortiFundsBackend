@@ -18,6 +18,7 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
                 nomMembre: req.body.nom,
                 prenomMembre: req.body.prenom,
                 emailMembre: req.body.email,
+                createdBy : req.user.idUser
             }
 
             await Membre.create(membreBody)
@@ -43,14 +44,12 @@ router.get('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
 
         let searchInput = req.query.searchInput || ''
         
-        let membres = await Membre.findAll()
-
+        let membres = await Membre.findAll({attributes : ['idMembre', 'nomMembre', 'prenomMembre', 'emailMembre']})
         if (membres.length > 0 && searchInput !== '') {
             searchInput = searchInput.trim()
-            membres = membres.filter(e=>{
-                return e.nomMembre.includes(searchInput)
-                || e.prenomMembre.includes(searchInput)
-                || e.emailMembre.includes(searchInput)
+            membres = membres.filter(membre=>{
+                values = Object.values(membre.toJSON())
+                return searchInput.split(' ').every(el=>values.some(e=>e.startsWith(el)))
             })
         }
 

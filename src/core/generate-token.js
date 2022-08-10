@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const _ = require('lodash');
 const { promisify } = require('util');
 const User = require('../models/user')
+const Role = require('../models/Role')
 const { InternalError, BadTokenError } = require('../core/api-error')
 
 //this one calls the one below it
@@ -40,14 +41,15 @@ refreshToken = async (req) => {
     const user = await User.findOne({
         where: {
             idUser: decoded.idUser
-        }
+        },
+        include : [{ model: Role, attributes: ['nomRole'], as : 'role' }]
     })
 
     if (!user) {
         throw new InternalError("User not found");
     }
 
-    req.user = user
+    req.user = user.toJSON()
 
     const refreshSecret =
         process.env.JWT_REFRESH_SECRET + user.password;
