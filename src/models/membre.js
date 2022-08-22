@@ -1,34 +1,47 @@
-const { DataTypes, Model } = require('sequelize');
-const sequelize = require('../database/connection');
+const { Model } = require('sequelize');
 
-class Membre extends Model {}
+module.exports = (sequelize, DataTypes) => {
 
-Membre.init({
-    idMembre: {
-        type: DataTypes.INTEGER,
-        autoIncrement: true,
-        primaryKey: true,
-    },
-    nomMembre: {
-        type: DataTypes.STRING,
-        notEmpty: true,
-        allowNull: false,
-    },
-    prenomMembre: {
-        type: DataTypes.STRING,
-        notEmpty: true,
-        allowNull: false,
-    },
-    emailMembre: {
-        type: DataTypes.STRING,
-        allowNull: true,
-    },
-}, {
-    //this telling sequelize to not pluralize table name
-    tableName: 'membres',
-    //providing the db instance
-    sequelize,
-    modelName: 'Membre',
-})
+    class Membre extends Model {
+        static associate(model) {
+            this.belongsTo(model.User, { foreignKey: "createdBy", })
+            this.hasMany(model.Commission, { foreignKey: "presidentId", as: "commissionsPresidees" })
+            this.belongsToMany(model.Commission, { through: model.MembreCommission, foreignKey: "idMembre", as: "commissions" })
+        }
+    }
 
-module.exports = Membre
+    Membre.init({
+        idMembre: {
+            type: DataTypes.INTEGER,
+            autoIncrement: true,
+            primaryKey: true,
+        },
+        nomMembre: {
+            type: DataTypes.STRING,
+            notEmpty: true,
+            allowNull: false,
+        },
+        prenomMembre: {
+            type: DataTypes.STRING,
+            notEmpty: true,
+            allowNull: false,
+        },
+        emailMembre: {
+            type: DataTypes.STRING,
+            allowNull: true,
+            validate: {
+                isEmail: {
+                    msg: "Email non valid"
+                },
+            }
+        },
+    }, {
+        //this telling sequelize to not pluralize table name
+        tableName: 'membres',
+        //providing the db instance
+        sequelize,
+        modelName: 'Membre',
+    })
+
+    return Membre
+}

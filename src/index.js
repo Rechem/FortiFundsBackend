@@ -1,15 +1,18 @@
 //connecting to db
 require('./database/connection')
-require('./models/initialize')
+// require('./models/initialize')
 const dotenv = require('dotenv')
 const express = require('express')
 const userRouter = require('./routers/user/user')
 const demandeRouter = require('./routers/demande/demande')
-const membreRouter = require('./routers/commissions/membres/membre')
+const membreRouter = require('./routers/membres/membre')
 const commissionRouter = require('./routers/commissions/commission')
+const complementRouter = require('./routers/complement/complement')
+const projetRouter = require('./routers/projet/projet')
 const cookieParser = require('cookie-parser')
 const cors = require('cors')
 const { ApiError, InternalError } = require('./core/api-error')
+var path = require('path');
 
 dotenv.config();
 
@@ -31,6 +34,7 @@ let corsOptions = {
 }
 
 app.use(cors(corsOptions));
+app.use(express.static('uploads'));
 
 //to parse everything to json
 app.use(express.json())
@@ -38,8 +42,10 @@ app.use(cookieParser());
 
 app.use('/users', userRouter)
 app.use('/demandes', demandeRouter)
+app.use('/complements', complementRouter)
 app.use('/commissions', commissionRouter)
-app.use('/commissions/membres', membreRouter)
+app.use('/membres', membreRouter)
+app.use('/projets', projetRouter)
 
 app.use((err, req, res, next) => {
     console.log(err.stack);

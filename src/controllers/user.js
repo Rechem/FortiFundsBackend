@@ -1,15 +1,15 @@
 const bcryptjs = require('bcryptjs')
-const User = require('../models/user')
-const Role = require('../models/role')
+const { User, Role } = require('../models')
 const { ValidationError } = require('sequelize');
-const { roles } = require('../models/utils')
+const { roles } = require('../core/utils')
 const { removeTokens } = require('../core/generate-token')
 const asyncHandler = require('../helpers/async-handler')
 const { BadRequestError, InternalError, AuthFailureError } = require('../core/api-error')
 const { SuccessResponse } = require('../core/api-response')
+const createCookie = require('../core/create-cookie');
+const { createTokens } = require('../core/generate-token');
 
 const signUpController = asyncHandler(async (req, res, next) => {
-console.log("nigger");
     const [user, built] = await User.findOrBuild({
         where: { email: req.body.email },
         defaults: { ...req.body, }
@@ -35,7 +35,7 @@ console.log("nigger");
 
     } catch (e) {
         if (e instanceof ValidationError) {
-            throw new BadRequestError(e.errors[0].message)
+            throw new BadRequestError()
         } else
             throw e
     }
@@ -63,8 +63,27 @@ const signOutController = asyncHandler(async (req, res, next) => {
     new SuccessResponse("Deconnecté avec succès").send(res)
 })
 
+const signUserIn = asyncHandler(async (req, res, next) => {
+    refreshSecret = process.env.JWT_REFRESH_SECRET + req.user.password
+    const [token, refreshToken] = createTokens(
+        {
+            idUser: req.user.idUser,
+            completedSignup: req.user.completedSignup,
+            // verified: req.user.verified,
+            // blocked: req.user.blocked,
+            role: req.user.role
+        },
+        refreshSecret
+    )
+    createCookie(res, token, '__act', process.env.ACCESS_TOKEN_COOKIE_EXPIRES);
+    createCookie(res, refreshToken, '__rt', process.env.REFRESH_TOKEN_COOKIE_EXPIRES);
+    const user = await User.authenticationResponse(req.user)
+    new SuccessResponse("Authentifié avec succès", { user }).send(res)
+})
+
 module.exports = {
     signUpController,
     signInController,
-    signOutController
+    signOutController,
+    signUserIn
 }

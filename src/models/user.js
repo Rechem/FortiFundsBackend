@@ -1,10 +1,19 @@
-const { DataTypes, Model } = require('sequelize');
-const sequelize = require('../database/connection');
+const { Model, ValidationError } = require('sequelize');
 const bcryptjs = require('bcryptjs');
-const Role = require('./role')
 const _ = require('lodash')
 
+module.exports = (sequelize, DataTypes) => {
+
 class User extends Model {
+
+    static associate(model){
+        this.belongsTo(model.Role, { foreignKey: "roleId", as : 'role'} )
+        this.hasMany(model.Demande, { foreignKey : "userId"})
+        this.hasMany(model.Membre, { foreignKey : "createdBy", as : 'membres'})
+        this.hasMany(model.Commission, { foreignKey : "createdBy", as :"commissions"})
+        this.hasMany(model.Complement, { foreignKey : "createdBy", as : 'complements'})
+
+    }
 
     static async authenticationResponse(user) {
         // let user = super.toJSON();
@@ -15,7 +24,7 @@ class User extends Model {
     }
 
     static async getRole(user) {
-        const role = await Role.findOne({where : {idRole : user.roleId}})
+        const role = await sequelize.models.Role.findOne({where : {idRole : user.roleId}})
         return role.nomRole
 
     }
@@ -33,7 +42,7 @@ User.init({
         allowNull: false,
         validate: {
             isEmail: {
-                msg: "Email non valid"
+                msg: "Email non valide"
             }
         },
     },
@@ -43,7 +52,7 @@ User.init({
         validate: {
             passwordValidator(value) {
                 if (!(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/).test(value))
-                    throw new Error("Le mot de passe doit contenir au moins 8 caractères numériques et alphabétiques")
+                    throw new ValidationError("Le mot de passe doit contenir au moins 8 caractères numériques et alphabétiques")
             }
         },
     },
@@ -92,7 +101,7 @@ User.init({
             notEmpty: true,
             telephoneValidator(value) {
                 if (value != null && !(/^\+*[0-9]+/).test(value)) {
-                    throw new Error("Format telephone invalide")
+                    throw new ValidationError("Format telephone invalide")
                 }
             }
         }
@@ -150,5 +159,6 @@ const beforeUpdateMiddleware = async (user, _) => {
 User.beforeCreate(createUserMiddleware);
 User.beforeUpdate(beforeUpdateMiddleware);
 
+return User
 
-module.exports = User
+}

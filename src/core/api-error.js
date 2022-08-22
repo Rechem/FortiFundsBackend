@@ -45,7 +45,7 @@ class ApiError extends Error {
             default: {
                 let message = err.message;
                 // Do not send failure message in production as it may send sensitive data
-                if (process.env.NODE_ENV === 'production') message = 'Something wrong happened.';
+                if (process.env.NODE_ENV === 'production') message = 'Une erreur est survenue.';
                 return new InternalErrorResponse(message).send(res);
             }
         }
@@ -65,7 +65,7 @@ class UnauthroizedError extends ApiError {
 }
 
 class InternalError extends ApiError {
-    constructor(message = 'Internal error') {
+    constructor(message = 'Une erreur est survenue.') {
         super(ErrorType.INTERNAL, message);
     }
 }

@@ -1,6 +1,6 @@
-const { Model, DataTypes } = require('sequelize');
-const sequelize = require('../database/connection');
+const { Model } = require('sequelize');
 
+module.exports = (sequelize, DataTypes) => {
 //a cross table M:N
 class MembreCommission extends Model { }
 
@@ -32,4 +32,6 @@ MembreCommission.init({
     modelName: 'MembreCommission',
 })
 
-module.exports = MembreCommission
+return MembreCommission
+
+}

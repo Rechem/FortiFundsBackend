@@ -1,8 +1,7 @@
 const jwt = require('jsonwebtoken');
 const _ = require('lodash');
 const { promisify } = require('util');
-const User = require('../models/user')
-const Role = require('../models/Role')
+const {User, Role} = require('../models')
 const { InternalError, BadTokenError } = require('../core/api-error')
 
 //this one calls the one below it

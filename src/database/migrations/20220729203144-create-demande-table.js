@@ -48,11 +48,6 @@ module.exports = {
         allowNull: false,
         defaultValue: 'En attente',
       },
-      seenByAdmin: {
-        type: DataTypes.BOOLEAN,
-        allowNull: false,
-        defaultValue: false,
-      },
       seenByUser: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
@@ -62,6 +57,10 @@ module.exports = {
         type: DataTypes.STRING,
         allowNull: false,
       },
+      avatar: {
+        type: DataTypes.STRING,
+        allowNull: true
+      },
       userId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -70,9 +69,13 @@ module.exports = {
           key: 'idUser',
         }
       },
-      avatar: {
-        type: DataTypes.STRING,
-        allowNull: true
+      commissionId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'commissions',
+          key: 'idCommission',
+        },
       },
       createdAt: {
         allowNull: false,

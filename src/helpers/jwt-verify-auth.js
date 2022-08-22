@@ -1,5 +1,4 @@
-const User = require('../models/user')
-const Role = require('../models/role')
+const { User, Role } = require('../models')
 const jwt = require('jsonwebtoken')
 const createCookie = require('../core/create-cookie')
 const { TokenExpiredError } = require('jsonwebtoken')
