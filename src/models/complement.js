@@ -1,7 +1,6 @@
 const { Model } = require('sequelize');
 const { status } = require('../core/utils')
 
-
 module.exports = (sequelize, DataTypes) => {
     class Complement extends Model { 
         static associate(model){
@@ -33,6 +32,9 @@ module.exports = (sequelize, DataTypes) => {
     });
 
     const updateDemande = async (complement, _) => {
+
+        const Demande = sequelize.models.Demande
+
         const result = await Complement.findOne(
             {
                 where: { demandeId: complement.demandeId, cheminComplement: null },
@@ -45,9 +47,9 @@ module.exports = (sequelize, DataTypes) => {
             })
 
         if (!result) {
-            const demande = await sequelize.models.Demande.findByPk(complement.demandeId)
+            const demande = await Demande.findByPk(complement.demandeId)
             if (demande.etat === status.complement) {
-                await sequelize.models.Demande.update({
+                await Demande.update({
                     etat: status.pending,
                 }, { where: { idDemande: complement.demandeId } })
             }

@@ -5,40 +5,15 @@ const asyncHandler = require('../../helpers/async-handler')
 const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth')
 // const User = require('../../models/user')
 const { Commission, MembreCommission, Membre, Demande, Projet } = require('../../models')
-const { roles, flattenObject, status } = require('../../core/utils')
+const { roles, flattenObject, statusDemande, statusCommission } = require('../../core/utils')
 const { ValidationError, Op } = require('sequelize')
 const { commissionSchema, acceptCommissionSchema } = require('./schema')
 const sequelize = require('../../database/connection')
 const multer = require('multer')
 const path = require('path')
-const { isAdmin, isModo, isSimpleUser } = require('../../core/utils')
+const { isAdmin, isModo, isSimpleUser, fieldNames, upload, sanitizeFileName } = require('../../core/utils')
 const _ = require('lodash')
 const dayjs = require('dayjs')
-
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, './uploads/rapports-commissions/');
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-        let fileName = file.originalname.match(RegExp(/^.*(?=\.[a-zA-Z]+)/g))
-        fileName = fileName.toString().replace(/ /g, "_");
-        cb(null, fileName + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
-
-const upload = multer({
-    storage: storage,
-    fileFilter: (req, file, cb) => {
-        const fileTypes = /pdf|doc|docx/
-        const mimeType = fileTypes.test(file.mimetype)
-        const extname = fileTypes.test(path.extname(file.originalname))
-        if (mimeType && extname) {
-            return cb(null, true)
-        } else
-            cb(null, false, new BadRequestError(`Format de fichier invalide.`))
-    }
-}).single('rapportCommission')
 
 const router = new express.Router()
 
@@ -50,10 +25,10 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     try {
         const { error } = commissionSchema.validate(req.body);
         if (error) {
-            console.log(error);
+            console.log("here ?", error);
             throw new BadRequestError()
         }
-
+        console.log("here ?")
         await sequelize.transaction(async (t) => {
 
             const commissionBody = {
@@ -99,7 +74,7 @@ router.get('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
             { model: Membre, attributes: ['nomMembre', 'prenomMembre'], as: 'president' },
             { model: Demande, attributes: [], as: "demandes" },
         ],
-        group: ['idCommission']
+        group: ['idCommission'],
     })
 
     if (commissions.length > 0 && searchInput !== '') {
@@ -217,7 +192,7 @@ router.patch('/accept', jwtVerifyAuth,
             throw new UnauthroizedError()
         return next()
     }),
-    upload,
+    upload.single(fieldNames.rapportCommission),
     asyncHandler(async (req, res, next) => {
         if (!req.file)
             throw new BadRequestError('Format de fichier invalide.')
@@ -231,7 +206,7 @@ router.patch('/accept', jwtVerifyAuth,
             //because formdata thats why
             const demandes = JSON.parse(req.body.demandes)
 
-            if (!demandes.every(d => d.etat === status.accepted || d.etat === status.refused)) {
+            if (!demandes.every(d => d.etat === statusDemande.accepted || d.etat === statusDemande.refused)) {
                 throw new BadRequestError()
             }
 
@@ -241,8 +216,8 @@ router.patch('/accept', jwtVerifyAuth,
 
                 const commission = await Commission.findByPk(req.body.idCommission)
                 await commission.update({
-                    etat: status.terminee,
-                    rapportCommission: req.file.path
+                    etat: statusCommission.terminee,
+                    rapportCommission: sanitizeFileName(req.file.path)
                 }, { transaction: t })
 
                 for await (const demande of demandes) {

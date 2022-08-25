@@ -7,38 +7,12 @@ const asyncHandler = require('../../helpers/async-handler')
 const { SuccessCreationResponse, SuccessResponse } = require('../../core/api-response')
 const { BadRequestError, UnauthroizedError, NotFoundError } = require('../../core/api-error')
 const { ValidationError } = require('sequelize')
-const { roles, status, flattenObject } = require('../../core/utils')
-const { isAdmin, isModo, isSimpleUser } = require('../../core/utils')
+const { roles, statusDemande, flattenObject, sanitizeFileName } = require('../../core/utils')
+const { isAdmin, isModo, isSimpleUser, fieldNames, upload } = require('../../core/utils')
 const { Op } = require('sequelize')
 const _ = require('lodash')
 const { sequelize } = require('../../models/index');
 const commission = require('../../models/commission');
-
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, `./uploads/business-plans/`);
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-        let fileName = file.originalname.match(RegExp(/^[ a-zA-Z-/_.0-9]*(?=\.[a-zA-Z]+)/g))
-        fileName = fileName.toString().replace(/ /g, "_");
-        cb(null, fileName + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
-
-const upload = multer({
-    storage: storage,
-    limits: { fileSize: 10485760 },
-    fileFilter: (req, file, cb) => {
-        const fileTypes = /pdf|doc|docx|xls|xlsx|pptx|ppt/
-        const mimeType = fileTypes.test(file.mimetype)
-        const extname = fileTypes.test(path.extname(file.originalname))
-        if (mimeType && extname) {
-            return cb(null, true)
-        } else
-            cb(null, false, new BadRequestError('Format de fichier invalide.'))
-    }
-}).single('businessPlan')
 
 const router = new express.Router()
 
@@ -49,7 +23,7 @@ router.post('/', jwtVerifyAuth,
             throw new UnauthroizedError()
         return next()
     }),
-    upload,
+    upload.single(fieldNames.businessPlan),
     asyncHandler(async (req, res, next) => {
         //TODO FIX NAME SUFFIX (DATE)
         try {
@@ -65,7 +39,7 @@ router.post('/', jwtVerifyAuth,
                 formeJuridique: req.body.formeJuridique,
                 denominationCommerciale: req.body.denominationCommerciale,
                 montant: req.body.montant,
-                businessPlan: req.file.path,
+                businessPlan: sanitizeFileName(req.file.path),
                 userId: req.user.idUser,
             }
 
@@ -110,7 +84,7 @@ router.get('/user/:idUser', jwtVerifyAuth,
             }
             new SuccessResponse('Demandes utilisateur', { demandes }).send(res)
         } else {
-            throw new UnauthroizedError()
+            throw new NotFoundError()
         }
     }))
 
@@ -250,7 +224,7 @@ router.get('/:idDemande', jwtVerifyAuth,
             (isSimpleUser(req) && demande.user.idUser == req.user.idUser))
             new SuccessResponse('Demande', { demande }).send(res)
         else
-            throw new UnauthroizedError()
+            throw new NotFoundError()
     }))
 
 router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
@@ -270,7 +244,7 @@ router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
         throw new NotFoundError('Cette demande n\'existe pas.')
 
     switch (nouveauEtat) {
-        case status.programmee:
+        case statusDemande.programmee:
 
             const idCommission = req.body.idCommission
 
@@ -280,7 +254,7 @@ router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
             const commission = await Commission.findByPk(idCommission)
             if (!commission)
                 throw new NotFoundError('Cette commission n\'existe pas.')
-            if (commission.etat === status.terminee)
+            if (commission.etat === statusDemande.terminee)
                 throw new BadRequestError('Cette commission s\'est terminée.')
 
             await sequelize.transaction(async (t) => {
@@ -298,7 +272,7 @@ router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
 
             })
             break;
-        case status.refused:
+        case statusDemande.refused:
 
             await sequelize.transaction(async (t) => {
 
@@ -315,7 +289,7 @@ router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
 
             break;
 
-        case status.preselectionnee:
+        case stastatusDemandetus.preselectionnee:
 
             await sequelize.transaction(async (t) => {
 
@@ -330,14 +304,14 @@ router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
                 }
             })
             break;
-        case status.pending:
+        case statusDemande.pending:
             await demande.update({
                 etat: nouveauEtat,
                 commissionId: null,
             })
             break;
 
-        case status.complement:
+        case statusDemande.complement:
 
             const listComplements = req.body.listComplements
 

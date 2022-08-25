@@ -1,6 +1,6 @@
 const dayjs = require('dayjs');
 const { Model } = require('sequelize');
-const { status } = require('../core/utils')
+const { statusDemande } = require('../core/utils')
 
 module.exports = (sequelize, DataTypes) => {
 
@@ -11,8 +11,7 @@ module.exports = (sequelize, DataTypes) => {
             this.hasMany(model.Complement, { foreignKey: "demandeId", as: 'complements' })
         }
     }
-
-
+    
     Demande.init({
         idDemande: {
             type: DataTypes.INTEGER,
@@ -83,10 +82,10 @@ module.exports = (sequelize, DataTypes) => {
         etat: {
             type: DataTypes.STRING,
             allowNull: false,
-            defaultValue: 'En attente',
+            defaultValue: statusDemande.pending,
             validate: {
                 isIn: {
-                    args: [Object.values(status)],
+                    args: [Object.values(statusDemande)],
                     msg: 'Valeur etat non valide'
                 }
             }

@@ -3,10 +3,11 @@ const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
 
 class Projet extends Model {
-    static associate(model){
-        this.belongsTo(model.Demande, { foreignKey : "demandeId", as : 'demande'})
-        this.belongsTo(model.Tranche, { foreignKey : "trancheId", as : 'tranche'})
-        
+    static associate(models){
+        this.belongsTo(models.Demande, { foreignKey : "demandeId", as : 'demande'})
+        this.belongsTo(models.Tranche, { foreignKey : "trancheId", as : 'tranche'})
+        this.hasMany(models.Prevision, { foreignKey : "projetId", as : 'previsions'})
+        this.hasMany(models.Realisation, { foreignKey : "projetId", as : 'realisations'})
     }
 }
 

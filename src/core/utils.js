@@ -1,3 +1,64 @@
+const multer = require('multer')
+const fs = require('fs')
+const path = require('path')
+const { BadRequestError } = require('./api-error')
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+
+        const dir = `./public/` + file.fieldname
+        // switch (file.fieldname) {
+        //     case fieldNames.businessPlan:
+        //         dir += `/business-plans/`
+        //         break;
+        //     case fieldNames.rapportCommission:
+        //         dir += `/rapports-commissions/`
+        //         break;
+        //     case fieldNames.complementFile:
+        //         dir += `/complements/`
+        //         break;
+        //     case fieldNames.documentAccordFinancement:
+        //         dir += `/documentAccordFinancement/`
+        //         break;
+        //     default:
+        //         break;
+        // }
+
+        if (!fs.existsSync(dir))
+            return fs.mkdir(dir, error => cb(error, dir))
+
+        return cb(null, dir)
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        let fileName = file.originalname.match(RegExp(/^.*(?=\.[a-zA-Z]+)/g))
+        fileName = fileName.toString().replace(/ /g, "_");
+        cb(null, fileName + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 10485760 },
+    fileFilter: (req, file, cb) => {
+        const fileTypes = /pdf|doc|docx|xls|xlsx|pptx|ppt|zip|jpg|jpeg|png/
+        const mimeType = fileTypes.test(file.mimetype)
+        const extname = fileTypes.test(path.extname(file.originalname))
+        if (mimeType && extname) {
+            return cb(null, true)
+        } else
+            cb(null, false, new BadRequestError(`Format de fichier invalide.`))
+    }
+})
+
+const fieldNames = {
+    businessPlan: "businessPlan",
+    rapportCommission: "rapportCommission",
+    complementFile: "complementFile",
+    documentAccordFinancement: "documentAccordFinancement",
+    factureArticlePrevision : "factureArticlePrevision",
+}
+
 const WILAYA =
     [{ numero: 1, designation: 'Adrar' },
     { numero: 2, designation: 'Chlef' },
@@ -73,6 +134,39 @@ const status = {
     programmee: 'Programmée',
     preselectionnee: 'Préselectionnée',
     terminee: 'Terminée',
+    brouillon: 'Brouillon'
+}
+
+const statusPrevision = {
+    accepted: 'Acceptée',
+    refused: 'Refusée',
+    pending: 'En attente évaluation',
+    brouillon: 'Brouillon',
+}
+
+const statusRealisation = {
+    waiting: 'En attente saisie',
+    pending: 'En attente évaluation',
+    terminee: 'Terminée',
+}
+
+const statusCommission = {
+    pending: 'En attente',
+    terminee: 'Terminée',
+}
+
+const statusDemande = {
+    accepted: 'Acceptée',
+    refused: 'Refusée',
+    pending: 'En attente évaluation',
+    complement: 'Besoin complément',
+    programmee: 'Programmée',
+    preselectionnee: 'Préselectionnée',
+}
+
+
+function sanitizeFileName (name) {
+    return `\\uploads\\${name.match(new RegExp(/(?<=public\\).*/g))}`
 }
 
 function flattenObject(ob) {
@@ -116,7 +210,7 @@ const getPagination = (page, size) => {
 };
 
 const getDemandesPagingData = (demandeAvecS, page, limit) => {
-    const { count, rows : demandes } = demandeAvecS;
+    const { count, rows: demandes } = demandeAvecS;
     const currentPage = page ? +page : 0;
     const totalPages = Math.ceil(count / limit);
     return { count, demandes, totalPages, currentPage };
@@ -126,11 +220,18 @@ module.exports = {
     WILAYA,
     roles,
     status,
+    statusPrevision,
+    statusCommission,
+    statusDemande,
+    statusRealisation,
+    upload,
+    fieldNames,
+    sanitizeFileName,
     flattenObject,
     isAdmin,
     isModo,
     isSimpleUser,
-    getPagination,
-    getDemandesPagingData,
-    PAGESIZE
+    // getPagination,
+    // getDemandesPagingData,
+    // PAGESIZE
 }

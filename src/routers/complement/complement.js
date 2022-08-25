@@ -8,47 +8,21 @@ const { SuccessCreationResponse, SuccessResponse } = require('../../core/api-res
 const { BadRequestError, UnauthroizedError, NotFoundError } = require('../../core/api-error')
 const { ValidationError, where } = require('sequelize')
 const { roles } = require('../../core/utils')
-const { isAdmin, isModo, isSimpleUser } = require('../../core/utils')
-
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, './uploads/complements/');
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-        let fileName = file.originalname.match(RegExp(/^.*(?=\.[a-zA-Z]+)/g))
-        fileName = fileName.toString().replace(/ /g, "_");
-        cb(null, fileName + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
-
-const upload = multer({
-    storage: storage,
-    limits: { fileSize: 10485760 },
-    fileFilter: (req, file, cb) => {
-        const fileTypes = /pdf|doc|docx|xls|xlsx|pptx|ppt|zip|rar|jpg|jpeg|png/
-        const mimeType = fileTypes.test(file.mimetype)
-        const extname = fileTypes.test(path.extname(file.originalname))
-        if (mimeType && extname) {
-            return cb(null, true)
-        } else
-            cb(null, false, new BadRequestError(`Format de fichier invalide.`))
-    }
-}).single('complementFile')
+const { isAdmin, isModo, isSimpleUser, fieldNames, upload, sanitizeFileName } = require('../../core/utils')
 
 const router = new express.Router()
 
 //currently not in use
-router.get('/:idComplement/download/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
+// router.get('/:idComplement/download/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
 
-    const idComplement = req.params.idComplement
+//     const idComplement = req.params.idComplement
 
-    const complement = await Complement.findByPk(idComplement)
-    if (!complement)
-        throw new NotFoundError("Complement introuvable")
-    next()
-    // res.download(complement.cheminComplement, complement.cheminComplement.match(new RegExp(/[a-zA-Z-/_.0-9]+$/g)));
-}))
+//     const complement = await Complement.findByPk(idComplement)
+//     if (!complement)
+//         throw new NotFoundError("Complement introuvable")
+//     next()
+//     // res.download(complement.cheminComplement, complement.cheminComplement.match(new RegExp(/[a-zA-Z-/_.0-9]+$/g)));
+// }))
 
 router.patch('/', jwtVerifyAuth,
     asyncHandler(async (req, res, next) => {
@@ -56,7 +30,7 @@ router.patch('/', jwtVerifyAuth,
             throw new UnauthroizedError()
         return next()
     }),
-    upload,
+    upload.single(fieldNames.complementFile),
     asyncHandler(async (req, res, next) => {
         if (!req.file)
             throw new BadRequestError('Format de fichier invalide.')
@@ -65,7 +39,7 @@ router.patch('/', jwtVerifyAuth,
         if (!complement)
             throw new NotFoundError()
         //The afterUpdate hook is fired after calling update on an instance
-        await complement.update({ cheminComplement: req.file.path })
+        await complement.update({ cheminComplement: sanitizeFileName(req.file.path) })
 
         new SuccessResponse("Complément ajouté.").send(res)
     }))

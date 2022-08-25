@@ -1,5 +1,7 @@
 const { Model } = require('sequelize');
 const dayjs = require('dayjs')
+const {statusCommission} = require('../core/utils');
+const { object } = require('joi');
 
 module.exports = (sequelize, DataTypes) => {
     class Commission extends Model { 
@@ -28,11 +30,11 @@ module.exports = (sequelize, DataTypes) => {
         etat: {
             type: DataTypes.STRING,
             allowNull: false,
-            defaultValue: 'En attente',
+            defaultValue: statusCommission.pending,
             validate: {
                 notEmpty: true,
                 isIn: {
-                    args: [['En attente', 'Terminée']],
+                    args: [Object.values(statusCommission)],
                     msg: 'L\'état d\'une commission peut être autre que "En attente" et "Terminée"'
                 }
             }
