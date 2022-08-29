@@ -5,7 +5,7 @@ const { statusRealisation } = require('../core/utils')
 module.exports = (sequelize, DataTypes) => {
   class Realisation extends Model {
     static associate(models) {
-      this.belongsTo(models.Projet, { foreignKey: "projetId", as: 'projet' })
+      this.belongsTo(models.Projet, { foreignKey: "projetId", primaryKey: true, as: 'projet' })
     }
   }
   Realisation.init({

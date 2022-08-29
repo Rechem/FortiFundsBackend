@@ -150,6 +150,13 @@ const statusRealisation = {
     terminee: 'Terminée',
 }
 
+const statusArticleRealisation = {
+    accepted: 'Acceptée',
+    refused: 'Refusée',
+    pending: 'En attente évaluation',
+    waiting: 'En attente saisie',
+}
+
 const statusCommission = {
     pending: 'En attente',
     terminee: 'Terminée',
@@ -224,6 +231,7 @@ module.exports = {
     statusCommission,
     statusDemande,
     statusRealisation,
+    statusArticleRealisation,
     upload,
     fieldNames,
     sanitizeFileName,

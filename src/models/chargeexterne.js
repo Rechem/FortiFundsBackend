@@ -1,16 +1,18 @@
 'use strict';
-const { Model, ValidationError } = require('sequelize');
+const {
+  Model
+} = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
-  class Investissement extends Model {
+  class ChargeExterne extends Model {
     static associate(models) {
-      this.belongsTo(models.Prevision, {foreignKey : 'numeroTranche', primaryKey: true, as : 'prevision'})
-      this.belongsTo(models.Projet, {foreignKey : 'projetId', primaryKey: true, as : 'projet'})
-      this.belongsTo(models.TypeInvestissement, {foreignKey: 'typeInvestissementId', as : 'type'})
-      this.belongsTo(models.ArticleRealisation, { foreignKey: 'idInvestissement'})
+      this.belongsTo(models.Prevision, { foreignKey: 'numeroTranche', primaryKey: true, as: 'prevision' })
+      this.belongsTo(models.Projet, { foreignKey: 'projetId', primaryKey: true, as: 'projet' })
+      this.belongsTo(models.TypeChargeExterne, { foreignKey: 'typeChargeExterneId', as: 'type' })
+      this.belongsTo(models.ArticleRealisation, { foreignKey: 'idChargeExterne'})
     }
   }
-  Investissement.init({
-    idInvestissement: {
+  ChargeExterne.init({
+    idChargeExterne: {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
@@ -50,9 +52,9 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
   }, {
-    tableName: 'investissements',
+    tableName: 'chargesexternes',
     sequelize,
-    modelName: 'Investissement',
+    modelName: 'ChargeExterne',
   });
-  return Investissement;
+  return ChargeExterne;
 };

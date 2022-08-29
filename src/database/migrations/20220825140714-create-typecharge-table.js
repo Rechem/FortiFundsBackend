@@ -1,8 +1,8 @@
 'use strict';
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('typecharges', {
-      idTypeCharge: {
+    await queryInterface.createTable('typechargesexternes', {
+      idTypeChargeExterne: {
         type: Sequelize.INTEGER,
         autoIncrement: true,
         primaryKey: true,
@@ -14,6 +14,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('typecharges');
+    await queryInterface.dropTable('typechargesexternes');
   }
 };

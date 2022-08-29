@@ -1,8 +1,8 @@
 'use strict';
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('investissements', {
-      idInvestissement: {
+    await queryInterface.createTable('salaires', {
+      idSalaire: {
         type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true,
@@ -25,31 +25,27 @@ module.exports = {
           key: 'idProjet',
         }
       },
-      typeInvestissementId : {
+      typePosteId : {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'typeinvestissements',
-          key: 'idTypeInvestissement',
+          model: 'typepostes',
+          key: 'idTypePoste',
         }
       },
       description: {
         type: Sequelize.STRING,
         allowNull: true,
       },
-      montantUnitaire: {
+      salaireMensuel: {
         type: Sequelize.INTEGER,
         allowNull: false,
       },
-      lien: {
-        type: Sequelize.STRING,
-        allowNull: true,
+      nbPersonne: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
       },
-      facture: {
-        type: Sequelize.STRING,
-        allowNull: true,
-      },
-      quantite: {
+      nbMois: {
         type: Sequelize.INTEGER,
         allowNull: false,
       },
@@ -64,6 +60,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('investissements');
+    await queryInterface.dropTable('salaires');
   }
 };

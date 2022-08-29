@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  async up (queryInterface, Sequelize) {
+  async up(queryInterface, Sequelize) {
     const types = [
       { idTypeInvestissement: 1, nomType: 'Matériel informatique', },
       { idTypeInvestissement: 2, nomType: 'Bannière' },
@@ -11,15 +11,19 @@ module.exports = {
     await queryInterface.bulkInsert('typeinvestissements', types)
   },
 
-  async down (queryInterface, Sequelize) {
+  async down(queryInterface, Sequelize) {
     await queryInterface.bulkDelete('typeinvestissements', {
-      [Op.or]: [
-        {
-          nomType: 'Matériel informatique',
-          nomType: 'Bannière',
-          nomType: 'Autres',
-        },
-      ]
+      where: {
+        nomType: {
+          [Op.or]: [
+            {
+              nomType: 'Matériel informatique',
+              nomType: 'Bannière',
+              nomType: 'Autres',
+            },
+          ]
+        }
+      }
     });
   }
 };

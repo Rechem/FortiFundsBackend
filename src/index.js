@@ -10,23 +10,20 @@ const complementRouter = require('./routers/complement/complement')
 const projetRouter = require('./routers/projet/projet')
 const trancheRouter = require('./routers/tranche/tranche')
 const previsionRouter = require('./routers/prevision/prevision')
+const realisationsRouter = require('./routers/realisations/realisations')
 const cookieParser = require('cookie-parser')
 const cors = require('cors')
 const { jwtVerifyAuth } = require('./helpers/jwt-verify-auth')
 const { verifyPermission } = require('./helpers/verifyPermission')
 const { ApiError, InternalError } = require('./core/api-error')
-var path = require('path');
+const compression = require('compression')
+const path = require('path');
 
 dotenv.config();
 
 const app = express()
 
 const port = process.env.PORT || 3001
-
-//how u start ur express server
-app.listen(port, () => {
-    console.log("Listening to port " + port)
-})
 
 //this shit is necessary
 let corsOptions = {
@@ -36,6 +33,7 @@ let corsOptions = {
     // exposedHeaders: ['Content-Disposition']
 }
 
+app.use(compression())
 app.use(cors(corsOptions));
 
 //to parse everything to json
@@ -57,6 +55,7 @@ app.use('/membres', membreRouter)
 app.use('/projets', projetRouter)
 app.use('/tranches', trancheRouter)
 app.use('/previsions', previsionRouter)
+app.use('/realisations', realisationsRouter)
 
 app.use((err, req, res, next) => {
     //DELETE IN production
@@ -72,3 +71,8 @@ app.use((err, req, res, next) => {
         }
     }
 });
+
+//how u start ur express server
+app.listen(port, () => {
+    console.log("Listening to port " + port)
+})

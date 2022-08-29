@@ -8,19 +8,36 @@ const previsionSchema = {
     // etat: Joi.string().valid(...Object.values(statusPrevision)),
 }
 
-const investissementSchema = {
+const previsionPatchSchema = {
+    etat: Joi.string().valid(...Object.values(statusPrevision)).required(),
+    message : Joi.string().allow(null, '')
+}
+
+const investissementChargeSchema = {
     projetId: Joi.number().positive().required(),
     numeroTranche: Joi.number().positive().required(),
-    idTypeInvestissement: Joi.number().positive().required(),
-    description: Joi.string(),
+    idType: Joi.number().positive().required(),
+    description: Joi.string().allow(null, ''),
     montantUnitaire: Joi.number().positive().min(1).required(),
     quantite: Joi.number().positive().min(1).required(),
-    facture: Joi.string(),
     lien: Joi.string().uri(),
-    lienOuFacture : Joi.string().required()
+    lienOuFacture : Joi.string().required().valid('facture', 'lien'),
+    investissementOuCharge : Joi.string().required().valid('investissement', 'charge-externe')
+}
+
+const salaireSchema = {
+    projetId: Joi.number().positive().required(),
+    numeroTranche: Joi.number().positive().required(),
+    typePosteId: Joi.number().positive().required(),
+    description: Joi.string().allow(null, ''),
+    salaireMensuel: Joi.number().positive().min(1000).required(),
+    nbPersonne: Joi.number().positive().min(1).required(),
+    nbMois: Joi.number().positive().min(1).required(),
 }
 
 module.exports = {
     previsionSchema: Joi.object(previsionSchema),
-    investissementSchema: Joi.object(investissementSchema)
+    investissementChargeSchema: Joi.object(investissementChargeSchema),
+    salaireSchema: Joi.object(salaireSchema),
+    previsionPatchSchema: Joi.object(previsionPatchSchema)
 }

@@ -20,10 +20,14 @@ router.get('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     const projets = await Projet.findAll({
         attributes: ['idProjet', 'montant',],
         include: [
+            { model: Prevision, attributes: ['numeroTranche', 'etat'], as: "previsions" },
+            { model: Realisation, attributes: ['numeroTranche', 'etat'], as: "realisations" },
             {
                 model: Demande, attributes: ['denominationCommerciale', 'avatar'], as: "demande",
                 where: condition,
-                include: [{ model: User, attributes: ['idUser', 'nom', 'prenom'], as: "user" }],
+                include: [
+                    { model: User, attributes: ['idUser', 'nom', 'prenom'], as: "user" },
+                ],
             },
             {
                 model: Tranche, attributes: ['nbTranches'], as: "tranche"
@@ -48,7 +52,7 @@ router.get('/:idProjet', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     const projet = await Projet.findByPk(idProjet, {
         attributes: ['idProjet', 'montant', 'documentAccordFinancement'],
         include: [
-            { model: Prevision, attributes: [ 'numeroTranche', 'etat'], as: "previsions" },
+            { model: Prevision, attributes: ['numeroTranche', 'etat'], as: "previsions" },
             { model: Realisation, attributes: ['numeroTranche', 'etat'], as: "realisations" },
             {
                 model: Demande,

@@ -1,8 +1,8 @@
 'use strict';
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('investissements', {
-      idInvestissement: {
+    await queryInterface.createTable('chargesexternes', {
+      idChargeExterne: {
         type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true,
@@ -25,12 +25,12 @@ module.exports = {
           key: 'idProjet',
         }
       },
-      typeInvestissementId : {
+      typeChargeExterneId : {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'typeinvestissements',
-          key: 'idTypeInvestissement',
+          model: 'typechargesexternes',
+          key: 'idTypeChargeExterne',
         }
       },
       description: {
@@ -64,6 +64,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('investissements');
+    await queryInterface.dropTable('chargesexternes');
   }
 };

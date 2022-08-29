@@ -126,7 +126,10 @@ router.get('/', jwtVerifyAuth,
             })
         }
 
-        new SuccessResponse('Liste des Demandes', { demandes }).send(res)
+        demandesToReturn = demandes.map((d) => _.pick(d, ['idDemande', 'etat', 'formeJuridique', 'denominationCommerciale', 'montant']))
+
+        new SuccessResponse('Liste des Demandes', {
+            demandes : demandesToReturn }).send(res)
         // res.status(200).json({ status: "success", demandes })
     }))
 

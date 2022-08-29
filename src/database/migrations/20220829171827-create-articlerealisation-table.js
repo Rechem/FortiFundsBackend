@@ -1,12 +1,9 @@
 'use strict';
+const {statusArticleRealisation} = require('../../core/utils')
+
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('investissements', {
-      idInvestissement: {
-        type: Sequelize.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-      },
+    await queryInterface.createTable('articlesrealisation', {
       numeroTranche : {
         type: Sequelize.INTEGER,
         allowNull: false,
@@ -25,21 +22,13 @@ module.exports = {
           key: 'idProjet',
         }
       },
-      typeInvestissementId : {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-        references: {
-          model: 'typeinvestissements',
-          key: 'idTypeInvestissement',
-        }
-      },
-      description: {
+      type: {
         type: Sequelize.STRING,
-        allowNull: true,
+        primaryKey: true,
       },
-      montantUnitaire: {
+      idArticle: {
         type: Sequelize.INTEGER,
-        allowNull: false,
+        primaryKey: true,
       },
       lien: {
         type: Sequelize.STRING,
@@ -49,21 +38,14 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: true,
       },
-      quantite: {
-        type: Sequelize.INTEGER,
+      etat: {
+        type: Sequelize.STRING,
         allowNull: false,
+        defaultValue : statusArticleRealisation.waiting,
       },
-      createdAt: {
-        allowNull: false,
-        type: Sequelize.DATE
-      },
-      updatedAt: {
-        allowNull: false,
-        type: Sequelize.DATE
-      }
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('investissements');
+    await queryInterface.dropTable('articlesrealisation');
   }
 };

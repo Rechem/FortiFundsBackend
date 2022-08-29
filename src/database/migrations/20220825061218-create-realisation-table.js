@@ -1,9 +1,14 @@
 'use strict';
-const {statusRealisation} = require('../../core/utils')
+const { statusRealisation } = require('../../core/utils')
 
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('realisations', {
+      numeroTranche: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        primaryKey: true,
+      },
       projetId: {
         type: Sequelize.INTEGER,
         primaryKey: true,
@@ -11,11 +16,6 @@ module.exports = {
           model: 'projets',
           key: 'idProjet',
         }
-      },
-      numeroTranche: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-        primaryKey: true,
       },
       etat: {
         type: Sequelize.STRING,

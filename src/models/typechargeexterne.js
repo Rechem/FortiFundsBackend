@@ -3,13 +3,13 @@ const {
   Model
 } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
-  class typeCharge extends Model {
+  class TypeChargeExterne extends Model {
     static associate(models) {
-      // define association here
+      this.hasMany(models.ChargeExterne, { foreignKey : "typeChargeExterneId", as : 'type'})
     }
   }
-  typeCharge.init({
-    idTypeCharge: {
+  TypeChargeExterne.init({
+    idTypeChargeExterne: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
       primaryKey: true,
@@ -19,9 +19,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
   }, {
-    tableName: 'typecharges',
+    timestamps: false,
+    tableName: 'typechargesexternes',
     sequelize,
-    modelName: 'typeCharge',
+    modelName: 'TypeChargeExterne',
   });
-  return typeCharge;
+  return TypeChargeExterne;
 };
