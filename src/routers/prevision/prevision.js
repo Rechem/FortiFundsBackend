@@ -3,14 +3,13 @@ const { UnauthroizedError, BadRequestError, NotFoundError, InternalError } = req
 const { SuccessCreationResponse, SuccessResponse } = require('../../core/api-response')
 const asyncHandler = require('../../helpers/async-handler')
 const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth')
-const { isAdmin, isModo, isSimpleUser, statusPrevision, upload, fieldNames, statusRealisation } = require('../../core/utils')
+const { isAdmin, isModo, sanitizeFileName, isSimpleUser, statusPrevision, upload, fieldNames, statusRealisation } = require('../../core/utils')
 const { Prevision, Projet, Tranche, TypeInvestissement, TypePoste,
     Investissement, Demande, Salaire, TypeChargeExterne, ChargeExterne, Realisation } = require('../../models')
 const db = require('../../models');
 const { investissementChargeSchema, salaireSchema, previsionPatchSchema } = require('./schema')
 const _ = require('lodash')
 const { getValeur, verifyOwnerShip } = require('../../helpers/prevision-realisation')
-const realisation = require('../../models/realisation')
 
 const router = new express.Router()
 
@@ -38,12 +37,6 @@ router.get('/:projetId/:numeroTranche', jwtVerifyAuth,
             throw new NotFoundError()
 
         const valeurPrevision = await getValeur(projetId, numeroTranche)
-
-        // const result = await Prevision.findOne({
-        //     where: { projetId, numeroTranche },
-        //     attributes: [[sequelize.fn('MAX', sequelize.col('prevision.numeroTranche')), 'maxTranche']],
-        //     where: { projetId }
-        // })
 
         const maxTranche = prevision.projet.previsions.length === 0 ? 0 : Math.max(...prevision.projet.previsions.map(p => p.numeroTranche))
 
@@ -84,17 +77,14 @@ router.get('/:projetId/:numeroTranche/:typePrevision', jwtVerifyAuth,
             case 'investissements':
                 modelName = 'Investissement'
                 typeName = 'TypeInvestissement';
-                attributes = ['nomType'];
                 break;
             case 'salaires':
                 modelName = 'Salaire';
                 typeName = 'TypePoste';
-                attributes = ['nomPoste'];
                 break;
             case 'chargesexternes':
                 modelName = 'ChargeExterne';
                 typeName = 'TypeChargeExterne';
-                attributes = ['nomType'];
                 break;
 
             default:
@@ -103,41 +93,267 @@ router.get('/:projetId/:numeroTranche/:typePrevision', jwtVerifyAuth,
         const results = await db[modelName].findAll({
             where: { projetId, numeroTranche },
             include: [
-                { model: db[typeName], attributes, as: 'type' }
+                { model: db[typeName], as: 'type' }
             ]
         })
 
         new SuccessResponse(`List des ${modelName}`, { results }).send(res)
     }))
 
-router.post('/investissementsChargesExternes', jwtVerifyAuth,
+router.patch('/salaires', jwtVerifyAuth,
     asyncHandler(async (req, res, next) => {
         if (!isSimpleUser(req))
             throw new UnauthroizedError()
 
-        const { error } = investissementChargeSchema.validate(req.body)
+        const { error } = salaireSchema.validate(req.body)
         if (error)
             throw new BadRequestError(error.details[0].message)
 
+        if (!req.body.idSalaire)
+            throw new BadRequestError('Id requise')
+
         const projet = await Projet.findByPk(req.body.projetId, {
+            attributes: ['idProjet'],
             include: [{
                 model: Demande, attributes: ['userId'], as: 'demande',
-                model: Prevision, attributes: ['etat'], as: 'previsions', where: {
+            },
+            {
+                model: Prevision, attributes: ['etat'], as: 'previsions',
+                where: {
                     numeroTranche: req.body.numeroTranche
                 }
             }]
         })
 
         if (!projet)
-            throw new UnauthroizedError()
+            throw new NotFoundError()
 
         if (projet.demande.userId !== req.user.idUser)
+            throw new NotFoundError()
+
+        if (projet.previsions[0].etat !== statusPrevision.brouillon &&
+            projet.previsions[0].etat !== statusPrevision.refused)
             throw new UnauthroizedError()
 
-        if (projet.previsions[0].etat !== statusPrevision.brouillon)
-            throw new UnauthroizedError()
+        const result = await Salaire.findOne({
+            where: {
+                projetId: req.body.projetId,
+                numeroTranche: req.body.numeroTranche,
+                idSalaire: req.body.idSalaire
+            }
+        })
 
+        if (!result)
+            throw new NotFoundError('Cet article n\'existe pas')
+
+        delete req.body.idSalaire
+
+        await result.update(req.body)
+
+        new SuccessResponse(`Salaire mis à jour avec succès`).send(res)
+
+    }))
+
+router.patch('/investissementsChargesExternes', jwtVerifyAuth,
+    asyncHandler(async (req, res, next) => {
+        if (!isSimpleUser(req))
+            throw new UnauthroizedError()
         next()
+    }),
+    upload.single(fieldNames.factureArticlePrevision),
+    asyncHandler(async (req, res, next) => {
+        const { error } = investissementChargeSchema.validate(req.body)
+        if (error)
+            throw new BadRequestError(error.details[0].message)
+
+        if (!req.body.id)
+            throw new BadRequestError('Id requise')
+
+        const projet = await Projet.findByPk(req.body.projetId, {
+            attributes: ['idProjet'],
+            include: [{
+                model: Demande, attributes: ['userId'], as: 'demande',
+            },
+            {
+                model: Prevision, attributes: ['etat'], as: 'previsions',
+                where: {
+                    numeroTranche: req.body.numeroTranche
+                }
+            }]
+        })
+        if (!projet)
+            throw new NotFoundError()
+
+        if (projet.demande.userId !== req.user.idUser)
+            throw new NotFoundError()
+
+        if (projet.previsions[0].etat !== statusPrevision.brouillon &&
+            projet.previsions[0].etat !== statusPrevision.refused)
+            throw new UnauthroizedError()
+
+        let modelName, responseName, idName, idTypeName;
+        if (req.body.investissementOuCharge === 'investissement') {
+            idName = 'idInvestissement'
+            idTypeName = 'typeInvestissementId'
+            modelName = 'Investissement'
+            responseName = 'Investissement'
+        } else if (req.body.investissementOuCharge === 'charge-externe') {
+            idName = 'idChargeExterne'
+            idTypeName = 'typeChargeExterneId'
+            modelName = 'ChargeExterne'
+            responseName = 'Charge externe'
+        }
+
+        const result = await db[modelName].findOne({
+            where: {
+                projetId: req.body.projetId,
+                numeroTranche: req.body.numeroTranche,
+                [idName]: req.body.id
+            }
+        })
+
+        if (!result)
+            throw new NotFoundError('Cet article n\'existe pas')
+
+        let body = {
+            [idTypeName]: req.body.idType,
+            description: req.body.description,
+            montantUnitaire: req.body.montantUnitaire,
+            quantite: req.body.quantite,
+        }
+
+        if (req.body.lienOuFacture === 'lien') {
+            if (!req.body.lien)
+                throw BadRequestError('Lien non fourni')
+            body.lien = req.body.lien
+            if (result.facture) {
+                fileNameToDelete = result.facture.replace(/^\\uploads/g, 'public')
+                deleteFile(fileNameToDelete)
+                body.facture = null
+            }
+        } else if (req.body.lienOuFacture === 'facture') {
+            body.lien = null
+            if (req.file) {
+                body.facture = sanitizeFileName(req.file.path)
+                if (result.facture) {
+                    fileNameToDelete = result.facture.replace(/^\\uploads/g, 'public')
+                    deleteFile(fileNameToDelete)
+                }
+            } else {
+                if (!result.facture)
+                    throw BadRequestError('Facture non fournie')
+            }
+        }
+
+        await result.update(body)
+
+        new SuccessResponse(`${responseName} mis(e) à jour avec succès`).send(res)
+
+    }))
+
+router.delete('/:projetId/:numeroTranche/:typePrevision/:id',
+    jwtVerifyAuth,
+    asyncHandler(async (req, res, next) => {
+        if (!isSimpleUser(req))
+            throw new UnauthroizedError()
+
+        const projetId = req.params.projetId
+        const numeroTranche = req.params.numeroTranche
+        const typePrevision = req.params.typePrevision
+        const id = req.params.id
+
+        const projet = await Projet.findByPk(projetId, {
+            attributes: ['idProjet'],
+            include: [{
+                model: Demande, attributes: ['userId'], as: 'demande',
+            },
+            {
+                model: Prevision, attributes: ['etat'], as: 'previsions',
+                where: {
+                    numeroTranche
+                }
+            }]
+        })
+        if (!projet)
+            throw new NotFoundError()
+
+        if (projet.demande.userId !== req.user.idUser)
+            throw new NotFoundError()
+
+        if (projet.previsions[0].etat !== statusPrevision.brouillon &&
+            projet.previsions[0].etat !== statusPrevision.refused)
+            throw new UnauthroizedError()
+
+        let modelName, responseName, idName;
+        if (typePrevision === 'investissement') {
+            idName = 'idInvestissement'
+            modelName = 'Investissement'
+            responseName = modelName
+        } else if (typePrevision === 'charge-externe') {
+            idName = 'idChargeExterne'
+            modelName = 'ChargeExterne'
+            responseName = 'Charge externe'
+        } else {
+            idName = 'idSalaire'
+            modelName = 'Salaire'
+            responseName = modelName
+        }
+
+        const result = await db[modelName].findOne({
+            where: {
+                projetId,
+                numeroTranche,
+                [idName]: id
+            }
+        })
+
+        if (!result)
+            throw new NotFoundError('Cet article n\'existe pas')
+
+        await db[modelName].destroy({
+            where: {
+                projetId,
+                numeroTranche,
+                [idName]: id
+            }
+        })
+
+        new SuccessResponse(`${responseName} supprimé(e) avec succès`).send(res)
+    }))
+
+router.post('/investissementsChargesExternes', jwtVerifyAuth,
+    asyncHandler(async (req, res, next) => {
+        if (!isSimpleUser(req))
+            throw new UnauthroizedError()
+        next()
+    }),
+    upload.single(fieldNames.factureArticlePrevision),
+    asyncHandler(async (req, res, next) => {
+        const { error } = investissementChargeSchema.validate(req.body)
+        if (error)
+            throw new BadRequestError(error.details[0].message)
+
+        const projet = await Projet.findByPk(req.body.projetId, {
+            attributes: ['idProjet'],
+            include: [{
+                model: Demande, attributes: ['userId'], as: 'demande',
+            },
+            {
+                model: Prevision, attributes: ['etat'], as: 'previsions',
+                where: {
+                    numeroTranche: req.body.numeroTranche
+                }
+            }]
+        })
+        if (!projet)
+            throw new NotFoundError()
+
+        if (projet.demande.userId !== req.user.idUser)
+            throw new NotFoundError()
+
+        if (projet.previsions[0].etat !== statusPrevision.brouillon &&
+            projet.previsions[0].etat !== statusPrevision.refused)
+            throw new UnauthroizedError()
 
         let body = {
             projetId: req.body.projetId,
@@ -148,12 +364,14 @@ router.post('/investissementsChargesExternes', jwtVerifyAuth,
         }
 
         if (req.body.lienOuFacture === 'lien') {
+            if (!req.body.lien)
+                throw BadRequestError('Lien non fourni')
             body.lien = req.body.lien
         } else if (req.body.lienOuFacture === 'facture') {
             if (req.file)
-                body.facture = req.file.path
+                body.facture = sanitizeFileName(req.file.path)
             else
-                throw new BadRequestError('Facture non fournie')
+                throw new BadRequestError('Facture non fourni')
         }
 
         let modelName, responseName;
@@ -161,7 +379,7 @@ router.post('/investissementsChargesExternes', jwtVerifyAuth,
             body.typeInvestissementId = req.body.idType
             modelName = 'Investissement'
             responseName = 'Investissement'
-        } else if (req.body.investissementOuCharge === 'charge-externe') {
+        } else {
             body.typeChargeExterneId = req.body.idType
             modelName = 'ChargeExterne'
             responseName = 'Charge externe'
@@ -169,10 +387,9 @@ router.post('/investissementsChargesExternes', jwtVerifyAuth,
 
         await db[modelName].create(body)
 
-        return new SuccessCreationResponse(`${responseName} ajouté avec succes`).send(res)
+        return new SuccessCreationResponse(`${responseName} ajouté(e) avec succès`).send(res)
 
-    }),
-    upload.single(fieldNames.factureArticlePrevision))
+    }))
 
 router.post('/salaires', jwtVerifyAuth,
     asyncHandler(async (req, res, next) => {
@@ -184,8 +401,13 @@ router.post('/salaires', jwtVerifyAuth,
             throw new BadRequestError(error.details[0].message)
 
         const projet = await Projet.findByPk(req.body.projetId, {
+            attributes: ['idProjet'],
             include: [{
                 model: Demande, attributes: ['userId'], as: 'demande'
+            }, {
+                model: Prevision, attributes: ['etat'], as: 'previsions', where: {
+                    numeroTranche: req.body.numeroTranche
+                }
             }]
         })
 
@@ -195,8 +417,12 @@ router.post('/salaires', jwtVerifyAuth,
         if (projet.demande.userId !== req.user.idUser)
             throw new NotFoundError()
 
-        if (projet.previsions[0].etat !== statusPrevision.brouillon)
+        if (projet.previsions[0].etat !== statusPrevision.brouillon &&
+            projet.previsions[0].etat !== statusPrevision.refused)
             throw new UnauthroizedError()
+
+        if (req.body.idSalaire)
+            delete req.body.idSalaire
 
         await Salaire.create(req.body)
 
@@ -215,6 +441,7 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
         throw new BadRequestError('idProjet requise')
 
     const projet = await Projet.findByPk(projetId, {
+        attributes: ['idProjet'],
         include: [
             { model: Tranche, attributes: ['nbTranches'], as: 'tranche' },
             { model: Prevision, attributes: ['numeroTranche', 'etat'], as: 'previsions' },
@@ -227,11 +454,6 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     if (!projet.tranche)
         throw new BadRequestError("Tranches non assignées au projet")
 
-    // const result = await Prevision.findOne({
-    //     attributes: [[sequelize.fn('MAX', sequelize.col('prevision.numeroTranche')), 'maxTranche']],
-    //     where: { projetId: projet.idProjet }
-    // })
-
     const maxTranchePrevision = projet.previsions.length === 0 ? 0 : Math.max(...projet.previsions.map(p => p.numeroTranche))
 
     if (projet.tranche.nbTranches <= maxTranchePrevision)
@@ -242,18 +464,13 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
         (maxTrancheRealisation === maxTranchePrevision &&
             projet.previsions.every(p => p.etat === statusPrevision.accepted) && projet.realisations.length > 0
             && projet.realisations.every(r => r.etat === statusRealisation.terminee))))
-            throw new BadRequestError('Il existe des réalisation non terminées')
+        throw new BadRequestError('Il existe des réalisation non terminées')
 
-        // getMaxTranchePrevisions() === 0
-        //     || (projet.previsions.find(r => r.numeroTranche === getMaxTranchePrevisions()).etat === 'Terminée'
-        //         && projet.realisations.length > 0 && getMaxTranchePrevisions() === getMaxTrancheRealisations()
-        //         && projet.realisations.find(r => r.numeroTranche === getMaxTrancheRealisations()).etat === 'Terminée')
-
-        const previsionBody = {
-            numeroTranche: maxTranche + 1,
-            projetId: req.body.projetId,
-            etat: statusPrevision.brouillon,
-        }
+    const previsionBody = {
+        numeroTranche: maxTranchePrevision + 1,
+        projetId: req.body.projetId,
+        etat: statusPrevision.brouillon,
+    }
 
     await Prevision.create(previsionBody)
 
@@ -262,9 +479,8 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
 
 router.patch('/:projetId/:numeroTranche', jwtVerifyAuth,
     asyncHandler(async (req, res, next) => {
-
-        const projetId = req.params.projetId
-        const numeroTranche = req.params.numeroTranche
+        const projetId = Number(req.params.projetId)
+        const numeroTranche = Number(req.params.numeroTranche)
 
         const { error } = previsionPatchSchema.validate(req.body)
         if (error)
@@ -272,7 +488,7 @@ router.patch('/:projetId/:numeroTranche', jwtVerifyAuth,
 
         const prevision = await Prevision.findOne({
             where: { projetId, numeroTranche },
-            attributes: { exclude: ['projetId', 'createdAt', 'updatedAt'], },
+            attributes: { exclude: ['createdAt', 'updatedAt'], },
             include: [{
                 model: Projet, attributes: ['idProjet', 'montant'], as: 'projet',
                 include: [
@@ -292,22 +508,23 @@ router.patch('/:projetId/:numeroTranche', jwtVerifyAuth,
                 if (!isSimpleUser(req))
                     throw new UnauthroizedError()
 
-                const valeurPrevision = await getValeurPrevision(projetId, numeroTranche)
+                const valeurPrevision = await getValeur(projetId, numeroTranche)
                 const valeurTranche = prevision.projet.tranche.pourcentage[prevision.numeroTranche]
                     * prevision.projet.montant;
 
                 if (valeurPrevision === 0)
-                    throw new BadRequestError(`Vous n'avez inséré aucun article`)
-
+                throw new BadRequestError(`Vous n'avez inséré aucun article`)
+                
                 if (valeurPrevision > valeurTranche)
-                    throw new BadRequestError(`Le montant total de la prévision dépasse le montant de ${valeurTranche}`)
+                throw new BadRequestError(`Le montant total de la prévision dépasse le montant de ${valeurTranche}`)
 
-
-                await prevision.update({ etat: newEtat })
+                prevision.etat = newEtat
+                
+                await prevision.save()
                 break;
             case statusPrevision.accepted:
             case statusPrevision.refused:
-                if (!isAdmin(req) || prevision.etat === statusPrevision.brouillon)
+                if (!isAdmin(req) || prevision.etat !== statusPrevision.pending)
                     throw new UnauthroizedError();
 
                 await prevision.update({ etat: newEtat })

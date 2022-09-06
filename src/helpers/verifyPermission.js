@@ -1,6 +1,7 @@
 const asyncHandler = require('./async-handler')
 const { isAdmin, isModo, fieldNames } = require('../core/utils')
-const { Demande, Complement, Projet } = require('../models')
+const { Demande, Complement, Projet, Investissement, ChargeExterne,
+    ArticleRealisation, Revenu } = require('../models')
 const { NotFoundError } = require('../core/api-error')
 
 const verifyPermission = asyncHandler(async (req, res, next) => {
@@ -35,12 +36,66 @@ const verifyPermission = asyncHandler(async (req, res, next) => {
             throw new NotFoundError()
             break;
         case fieldNames.documentAccordFinancement:
-            const projet = await Projet.findOne({
+            let projet = await Projet.findOne({
                 attributes: [],
                 include: [{ model: Demande, attributes: ['userId'], as: 'demande' }],
                 where: { documentAccordFinancement: ressourceName }
             })
             if (projet && projet.demande.userId === req.user.idUser)
+                next()
+            else
+                throw new NotFoundError()
+            break;
+        case fieldNames.factureArticlePrevision:
+            const investissement = await Investissement.findOne({
+                attributes: [],
+                where: { facture: ressourceName },
+                include: [{
+                    model: Projet, attributes: ['idProjet'], as: 'projet',
+                    include: [{ model: Demande, attributes: ['userId'], as: 'demande' }]
+                }]
+            })
+
+            const chargeExterne = await ChargeExterne.findOne({
+                attributes: [],
+                where: { facture: ressourceName },
+                include: [{
+                    model: Projet, attributes: ['idProjet'], as: 'projet',
+                    include: [{ model: Demande, attributes: ['userId'], as: 'demande' }]
+                }]
+            })
+            if ((investissement && investissement.projet.demande.userId === req.user.idUser)
+                || (chargeExterne && chargeExterne.projet.demande.userId === req.user.idUser))
+                next()
+            else
+                throw new NotFoundError()
+            break;
+        case fieldNames.factureArticleRealisation:
+            const article = await ArticleRealisation.findOne({
+                attributes: [],
+                where: { facture: ressourceName },
+                include: [{
+                    model: Projet, attributes: ['idProjet'], as: 'projet',
+                    include: [{ model: Demande, attributes: ['userId'], as: 'demande' }]
+                }]
+            })
+
+            if (article && article.projet.demande.userId === req.user.idUser)
+                next()
+            else
+                throw new NotFoundError()
+            break;
+        case fieldNames.factureArticleRevenu:
+            const revenu = await Revenu.findOne({
+                attributes: [],
+                where: { facture: ressourceName },
+                include: [{
+                    model: Projet, attributes: ['idProjet'], as: 'projet',
+                    include: [{ model: Demande, attributes: ['userId'], as: 'demande' }]
+                }]
+            })
+
+            if (revenu && revenu.projet.demande.userId === req.user.idUser)
                 next()
             else
                 throw new NotFoundError()

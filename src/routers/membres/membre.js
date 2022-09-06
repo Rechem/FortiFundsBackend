@@ -1,9 +1,9 @@
 const express = require('express')
-const { UnauthroizedError, BadRequestError } = require('../../core/api-error')
+const { UnauthroizedError, BadRequestError, NotFoundError } = require('../../core/api-error')
 const { SuccessCreationResponse, SuccessResponse } = require('../../core/api-response')
 const asyncHandler = require('../../helpers/async-handler')
 const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth')
-const { User, Membre } = require('../../models')
+const { User, Membre, Commission } = require('../../models')
 const { roles } = require('../../core/utils')
 const { ValidationError } = require('sequelize')
 const { isAdmin, isModo, isSimpleUser } = require('../../core/utils')
@@ -28,7 +28,7 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
         } catch (e) {
 
             if (e instanceof ValidationError) {
-                throw new BadRequestError()
+                throw new BadRequestError(e.errors[0].message)
             } else
                 throw e
         }
@@ -65,6 +65,19 @@ router.delete('/:idMembre', jwtVerifyAuth, asyncHandler(async (req, res, next) =
 
     const idMembre = req.params.idMembre
 
+    const membre = await Membre.findByPk(idMembre, {
+        include: [
+            { model: Commission, attributes: ['idCommission'], as: 'commissions' },
+            { model: Commission, attributes: ['idCommission'], as: 'commissionsPresidees' },
+        ]
+    })
+
+    if (!membre)
+        throw new NotFoundError('Ce membre n\'existe pas')
+
+    if (membre.commissions.length > 0 || membre.commissionsPresidees.length > 0)
+        throw new BadRequestError('Impossible de supprimer ce membre car il est présent dans une ou plusieurs commissions')
+
     await Membre.destroy({
         where: {
             idMembre: idMembre
@@ -94,7 +107,7 @@ router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
             }
         })
 
-        new SuccessResponse('Mis a jour avec succes').send(res)
+    new SuccessResponse('Mis a jour avec succes').send(res)
 }))
 
 module.exports = router

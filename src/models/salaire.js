@@ -5,10 +5,10 @@ const {
 module.exports = (sequelize, DataTypes) => {
   class Salaire extends Model {
     static associate(models) {
-      this.belongsTo(models.Prevision, {foreignKey : 'numeroTranche', primaryKey: true, as : 'prevision'})
-      this.belongsTo(models.Projet, {foreignKey : 'projetId', primaryKey: true, as : 'projet'})
-      this.belongsTo(models.TypePoste, {foreignKey: 'typePosteId', as : 'type'})
-      this.belongsTo(models.ArticleRealisation, { foreignKey: 'idSalaire'})
+      this.belongsTo(models.Prevision, { foreignKey: 'numeroTranche', primaryKey: true, as: 'prevision' })
+      this.belongsTo(models.Projet, { foreignKey: 'projetId', primaryKey: true, as: 'projet' })
+      this.belongsTo(models.TypePoste, { foreignKey: 'typePosteId', as: 'type' })
+      this.belongsTo(models.ArticleRealisation, { foreignKey: 'idSalaire' })
     }
   }
   Salaire.init({
@@ -16,6 +16,24 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    numeroTranche: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      primaryKey: true,
+      references: {
+        model: 'previsions',
+        key: 'numeroTranche',
+      }
+    },
+    projetId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      primaryKey: true,
+      references: {
+        model: 'projets',
+        key: 'idProjet',
+      }
     },
     description: {
       type: DataTypes.STRING,

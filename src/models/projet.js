@@ -8,6 +8,7 @@ class Projet extends Model {
         this.belongsTo(models.Tranche, { foreignKey : "trancheId", as : 'tranche'})
         this.hasMany(models.Prevision, { foreignKey : "projetId", as : 'previsions'})
         this.hasMany(models.Realisation, { foreignKey : "projetId", as : 'realisations'})
+        this.hasMany(models.Revenu, { foreignKey : "projetId", as : 'revenus'})
     }
 }
 

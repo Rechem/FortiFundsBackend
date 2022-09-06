@@ -1,4 +1,5 @@
-const { Model } = require('sequelize');
+const { Model, ValidationError } = require('sequelize');
+const validator = require('validator')
 
 module.exports = (sequelize, DataTypes) => {
 
@@ -30,8 +31,10 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.STRING,
             allowNull: true,
             validate: {
-                isEmail: {
-                    msg: "Email non valid"
+                emailValidator: (value) =>{
+                    if (value && !validator.isEmail(value)) {
+                        throw new ValidationError("Email non valide")
+                    }
                 },
             }
         },

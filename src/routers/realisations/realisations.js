@@ -3,11 +3,13 @@ const { UnauthroizedError, BadRequestError, NotFoundError, InternalError } = req
 const { SuccessCreationResponse, SuccessResponse } = require('../../core/api-response')
 const asyncHandler = require('../../helpers/async-handler')
 const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth')
-const { isAdmin, isModo, isSimpleUser, statusRealisation, upload, fieldNames, statusPrevision } = require('../../core/utils')
+const { isAdmin, isModo, isSimpleUser, statusRealisation, statusArticleRealisation, upload, fieldNames,
+    sanitizeFileName, statusPrevision, deleteFile } = require('../../core/utils')
 const { Realisation, Prevision, Projet, Tranche, TypeInvestissement, TypePoste,
     Investissement, Demande, Salaire, TypeChargeExterne, ChargeExterne, ArticleRealisation } = require('../../models')
 const db = require('../../models');
 const { getValeur, verifyOwnerShip } = require('../../helpers/prevision-realisation')
+const { articleRealisationSchema } = require('./schema')
 const sequelize = require('../../database/connection')
 const _ = require('lodash')
 
@@ -38,12 +40,6 @@ router.get('/:projetId/:numeroTranche', jwtVerifyAuth,
 
         const valeurRealisation = await getValeur(projetId, numeroTranche)
 
-        // const result = await Realisation.findOne({
-        //     where: { projetId, numeroTranche },
-        //     attributes: [[sequelize.fn('MAX', sequelize.col('realisation.numeroTranche')), 'maxTranche']],
-        //     where: { projetId }
-        // })
-
         const maxTranche = realisation.projet.realisations.length === 0 ? 0 : Math.max(...realisation.projet.realisations.map(r => r.numeroTranche))
 
         new SuccessResponse('List des previsions',
@@ -59,6 +55,7 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
         throw new BadRequestError('idProjet requise')
 
     const projet = await Projet.findByPk(projetId, {
+        attributes: ['idProjet'],
         include: [
             { model: Tranche, attributes: ['nbTranches'], as: 'tranche' },
             { model: Prevision, attributes: ['numeroTranche', 'etat'], as: 'previsions' },
@@ -67,7 +64,7 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     })
 
     if (!projet)
-        throw NotFoundError("Ce projet n'existe pas")
+        throw new NotFoundError("Ce projet n'existe pas")
 
     if (!projet.tranche)
         throw new BadRequestError("Tranches non assignées au projet")
@@ -148,7 +145,7 @@ router.get('/:projetId/:numeroTranche/:typePrevision', jwtVerifyAuth,
 
         await verifyOwnerShip(req, projetId)
 
-        let modelName, typeName, attributes, exclude = ['updatedAt', 'numeroTranche', 'projetId',];
+        let modelName, typeName, attributes, exclude = ['updatedAt',];
 
         switch (typePrevision) {
             case 'investissements':
@@ -185,6 +182,127 @@ router.get('/:projetId/:numeroTranche/:typePrevision', jwtVerifyAuth,
         })
 
         new SuccessResponse(`List des ${modelName}`, { results }).send(res)
+    }))
+
+router.patch('/article', jwtVerifyAuth,
+    asyncHandler(async (req, res, next) => {
+        if (!isAdmin(req) && !isSimpleUser(req))
+            throw new UnauthroizedError()
+        next()
+    }),
+    upload.single(fieldNames.factureArticleRealisation),
+    asyncHandler(async (req, res, next) => {
+        const { error } = articleRealisationSchema.validate(req.body)
+        if (error)
+            throw new BadRequestError(error.details[0].message)
+
+        const projet = await Projet.findByPk(req.body.projetId, {
+            attributes: ['idProjet'],
+            include: [
+                {
+                    model: Demande, attributes: ['userId'], as: 'demande',
+                },
+                {
+                    model: Realisation, attributes: ['etat'], as: 'realisations',
+                    where: {
+                        numeroTranche: req.body.numeroTranche
+                    }
+                },
+            ]
+        })
+        if (!projet)
+            throw new NotFoundError()
+
+        if (isSimpleUser(req) && projet.demande.userId !== req.user.idUser)
+            throw new NotFoundError()
+
+        let result = await ArticleRealisation.findOne({
+            where: {
+                projetId: req.body.projetId,
+                numeroTranche: req.body.numeroTranche,
+                idArticle: req.body.idArticle,
+                type: req.body.type,
+            }
+        })
+
+        if (!result)
+            throw new NotFoundError('Cet article n\'existe pas')
+
+        if (!req.body.etat)
+            throw new BadRequestError('Etat requis')
+
+        let body = {}
+
+        switch (req.body.etat) {
+            case statusArticleRealisation.pending:
+                if (!isSimpleUser(req) || (result.etat != statusArticleRealisation.waiting &&
+                    result.etat != statusArticleRealisation.refused))
+                    throw new UnauthroizedError()
+
+                body = {
+                    etat: statusArticleRealisation.pending
+                }
+
+                if (!req.body.lienOuFacture)
+                    throw new BadRequestError()
+
+                if (req.body.lienOuFacture === 'lien') {
+                    if (!req.body.lien)
+                        throw new BadRequestError('Lien non fourni')
+                    body.lien = req.body.lien
+                    if (result.facture) {
+                        fileNameToDelete = result.facture.replace(/^\\uploads/g, 'public')
+                        deleteFile(fileNameToDelete)
+                        body.facture = null
+                    }
+                } else if (req.body.lienOuFacture === 'facture') {
+                    body.lien = null
+                    if (req.file) {
+                        body.facture = sanitizeFileName(req.file.path)
+                        if (result.facture) {
+                            fileNameToDelete = result.facture.replace(/^\\uploads/g, 'public')
+                            deleteFile(fileNameToDelete)
+                        }
+                    } else {
+                        if (!result.facture)
+                            throw new BadRequestError('Facture non fournie')
+                    }
+                }
+
+                await result.update(body)
+                break;
+            case statusArticleRealisation.accepted:
+                if (!isAdmin(req) || (result.etat != statusArticleRealisation.pending
+                    && result.etat != statusArticleRealisation.refused))
+                    throw new UnauthroizedError()
+
+                body = {
+                    etat: statusArticleRealisation.accepted
+                }
+                await result.update(body)
+
+                break;
+            case statusArticleRealisation.refused:
+                if (!isAdmin(req) || result.etat != statusArticleRealisation.pending ||
+                    !req.body.message)
+                    throw new UnauthroizedError()
+
+                body = {
+                    etat: statusArticleRealisation.refused
+                }
+
+                await result.update(body)
+
+                //ADD MESSAGE IN TRANSACATION
+
+                break;
+            default:
+                break;
+        }
+
+
+        new SuccessResponse(`Succès`).send(res)
+
     }))
 
 module.exports = router

@@ -54,7 +54,7 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     } catch (e) {
 
         if (e instanceof ValidationError) {
-            throw new BadRequestError()
+            throw new BadRequestError(e.errors[0].message)
         } else
             throw e
     }
@@ -175,7 +175,7 @@ router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
 
     } catch (e) {
         if (e instanceof ValidationError) {
-            throw new BadRequestError()
+            throw new BadRequestError(e.errors[0].message)
         } else
             throw e
 
@@ -232,7 +232,7 @@ router.patch('/accept', jwtVerifyAuth,
 
         } catch (e) {
             if (e instanceof ValidationError) {
-                throw new BadRequestError()
+                throw new BadRequestError(e.errors[0].message)
             } else
                 throw e
 

@@ -6,6 +6,7 @@ module.exports = (sequelize, DataTypes) => {
   class Realisation extends Model {
     static associate(models) {
       this.belongsTo(models.Projet, { foreignKey: "projetId", primaryKey: true, as: 'projet' })
+      this.hasMany(models.ArticleRealisation, { foreignKey: 'numeroTranche',  as: 'realisation' })
     }
   }
   Realisation.init({
@@ -13,6 +14,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       autoIncrement: true,
       primaryKey: true
+    },
+    projetId: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      references: {
+        model: 'projets',
+        key: 'idProjet',
+      }
     },
     etat: {
       type: DataTypes.STRING,

@@ -1,29 +1,14 @@
 const multer = require('multer')
-const fs = require('fs')
 const path = require('path')
 const { BadRequestError } = require('./api-error')
+const fs = require('fs')
+const { promisify } = require('util')
+const unlinkAsync = promisify(fs.unlink)
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-
+        console.log(dir);
         const dir = `./public/` + file.fieldname
-        // switch (file.fieldname) {
-        //     case fieldNames.businessPlan:
-        //         dir += `/business-plans/`
-        //         break;
-        //     case fieldNames.rapportCommission:
-        //         dir += `/rapports-commissions/`
-        //         break;
-        //     case fieldNames.complementFile:
-        //         dir += `/complements/`
-        //         break;
-        //     case fieldNames.documentAccordFinancement:
-        //         dir += `/documentAccordFinancement/`
-        //         break;
-        //     default:
-        //         break;
-        // }
-
         if (!fs.existsSync(dir))
             return fs.mkdir(dir, error => cb(error, dir))
 
@@ -56,7 +41,10 @@ const fieldNames = {
     rapportCommission: "rapportCommission",
     complementFile: "complementFile",
     documentAccordFinancement: "documentAccordFinancement",
-    factureArticlePrevision : "factureArticlePrevision",
+    factureArticlePrevision: "factureArticlePrevision",
+    factureArticleRealisation: "factureArticleRealisation",
+    factureArticleRevenu: "factureArticleRevenu",
+
 }
 
 const WILAYA =
@@ -157,6 +145,12 @@ const statusArticleRealisation = {
     waiting: 'En attente saisie',
 }
 
+const statusArticleRevenu = {
+    accepted: 'Acceptée',
+    refused: 'Refusée',
+    pending: 'En attente évaluation',
+}
+
 const statusCommission = {
     pending: 'En attente',
     terminee: 'Terminée',
@@ -172,7 +166,7 @@ const statusDemande = {
 }
 
 
-function sanitizeFileName (name) {
+function sanitizeFileName(name) {
     return `\\uploads\\${name.match(new RegExp(/(?<=public\\).*/g))}`
 }
 
@@ -208,6 +202,15 @@ function isSimpleUser(req) {
     return req.user.role.nomRole === roles.roleSimpleUser
 }
 
+async function deleteFile(fileNameToDelete) {
+    try {
+        console.log('deleting ' + fileNameToDelete);
+        await unlinkAsync(fileNameToDelete)
+    } catch (error) {
+        console.log('Could not delete' + fileNameToDelete);
+    }
+}
+
 const PAGESIZE = 4
 
 const getPagination = (page, size) => {
@@ -216,11 +219,11 @@ const getPagination = (page, size) => {
     return { limit, offset };
 };
 
-const getDemandesPagingData = (demandeAvecS, page, limit) => {
-    const { count, rows: demandes } = demandeAvecS;
+const getPagingData = (list, page, limit) => {
+    const { count: totalCount, rows : data } = list;
     const currentPage = page ? +page : 0;
-    const totalPages = Math.ceil(count / limit);
-    return { count, demandes, totalPages, currentPage };
+    // const totalPages = Math.ceil(count / limit);
+    return { data, page: currentPage, totalCount, };
 };
 
 module.exports = {
@@ -234,12 +237,14 @@ module.exports = {
     statusArticleRealisation,
     upload,
     fieldNames,
+    statusArticleRevenu,
+    deleteFile,
     sanitizeFileName,
     flattenObject,
     isAdmin,
     isModo,
     isSimpleUser,
-    // getPagination,
-    // getDemandesPagingData,
-    // PAGESIZE
+    getPagination,
+    getPagingData,
+    PAGESIZE
 }

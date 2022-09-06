@@ -35,7 +35,7 @@ const signUpController = asyncHandler(async (req, res, next) => {
 
     } catch (e) {
         if (e instanceof ValidationError) {
-            throw new BadRequestError()
+            throw new BadRequestError(e.errors[0].message)
         } else
             throw e
     }

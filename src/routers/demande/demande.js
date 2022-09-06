@@ -49,7 +49,7 @@ router.post('/', jwtVerifyAuth,
 
         } catch (e) {
             if (e instanceof ValidationError) {
-                throw new BadRequestError()
+                throw new BadRequestError(e.errors[0].message)
             } else
                 throw e
         }

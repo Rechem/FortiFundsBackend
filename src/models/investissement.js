@@ -15,6 +15,24 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       autoIncrement: true,
     },
+    numeroTranche : {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      primaryKey: true,
+      references: {
+        model: 'previsions',
+        key: 'numeroTranche',
+      }
+    },
+    projetId : {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      primaryKey: true,
+      references: {
+        model: 'projets',
+        key: 'idProjet',
+      }
+    },
     description: {
       type: DataTypes.STRING,
       allowNull: true,

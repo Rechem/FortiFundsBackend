@@ -1,5 +1,4 @@
 const Joi = require('joi')
-const { join } = require('lodash')
 const { statusPrevision } = require('../../core/utils')
 
 const previsionSchema = {
@@ -10,7 +9,7 @@ const previsionSchema = {
 
 const previsionPatchSchema = {
     etat: Joi.string().valid(...Object.values(statusPrevision)).required(),
-    message : Joi.string().allow(null, '')
+    message: Joi.string().allow(null, '')
 }
 
 const investissementChargeSchema = {
@@ -21,8 +20,9 @@ const investissementChargeSchema = {
     montantUnitaire: Joi.number().positive().min(1).required(),
     quantite: Joi.number().positive().min(1).required(),
     lien: Joi.string().uri(),
-    lienOuFacture : Joi.string().required().valid('facture', 'lien'),
-    investissementOuCharge : Joi.string().required().valid('investissement', 'charge-externe')
+    lienOuFacture: Joi.string().required().valid('facture', 'lien'),
+    investissementOuCharge: Joi.string().required().valid('investissement', 'charge-externe'),
+    id: Joi.number().positive()
 }
 
 const salaireSchema = {
@@ -33,6 +33,7 @@ const salaireSchema = {
     salaireMensuel: Joi.number().positive().min(1000).required(),
     nbPersonne: Joi.number().positive().min(1).required(),
     nbMois: Joi.number().positive().min(1).required(),
+    idSalaire : Joi.number().positive(),
 }
 
 module.exports = {

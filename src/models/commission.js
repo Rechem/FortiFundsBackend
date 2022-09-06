@@ -1,7 +1,6 @@
 const { Model } = require('sequelize');
 const dayjs = require('dayjs')
 const {statusCommission} = require('../core/utils');
-const { object } = require('joi');
 
 module.exports = (sequelize, DataTypes) => {
     class Commission extends Model { 

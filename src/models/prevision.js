@@ -5,14 +5,23 @@ const { statusPrevision } = require('../core/utils')
 module.exports = (sequelize, DataTypes) => {
   class Prevision extends Model {
     static associate(models) {
-      this.belongsTo(models.Projet, { foreignKey: "projetId", primaryKey: true, as: 'projet' })
+      this.belongsTo(models.Projet, { foreignKey: "projetId", as: 'projet' })
     }
   }
   Prevision.init({
     numeroTranche: {
       type: DataTypes.INTEGER,
       primaryKey: true,
-      autoIncrement : true,
+      autoIncrement: true,
+    },
+    projetId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      primaryKey: true,
+      references: {
+        model: 'projets',
+        key: 'idProjet',
+      },
     },
     etat: {
       type: DataTypes.STRING,
