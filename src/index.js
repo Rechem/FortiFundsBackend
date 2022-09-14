@@ -13,6 +13,8 @@ const trancheRouter = require('./routers/tranche/tranche')
 const previsionRouter = require('./routers/prevision/prevision')
 const realisationsRouter = require('./routers/realisations/realisations')
 const revenuRouter = require('./routers/revenu/revenu')
+const motifsRouter = require('./routers/motif/motif')
+const ticketsRouter = require('./routers/ticket/ticket')
 const cookieParser = require('cookie-parser')
 const cors = require('cors')
 const { jwtVerifyAuth } = require('./helpers/jwt-verify-auth')
@@ -61,6 +63,8 @@ app.use('/tranches', trancheRouter)
 app.use('/previsions', previsionRouter)
 app.use('/realisations', realisationsRouter)
 app.use('/revenus', revenuRouter)
+app.use('/motifs', motifsRouter)
+app.use('/tickets', ticketsRouter)
 
 app.use(async (err, req, res, next) => {
 

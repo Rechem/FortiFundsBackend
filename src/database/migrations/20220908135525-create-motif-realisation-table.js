@@ -1,12 +1,17 @@
 'use strict';
-const {statusArticleRealisation} = require('../../core/utils')
-
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('articlesrealisation', {
+    await queryInterface.createTable('motifsrealisation', {
+      contenuMotif: {
+        type: Sequelize.STRING,
+        allowNull: false,
+      },
+      dateMotif: {
+        type: Sequelize.DATE,
+        primaryKey: true,
+      },
       numeroTranche : {
         type: Sequelize.INTEGER,
-        allowNull: false,
         primaryKey: true,
         references: {
           model: 'realisations',
@@ -15,7 +20,6 @@ module.exports = {
       },
       projetId : {
         type: Sequelize.INTEGER,
-        allowNull: false,
         primaryKey: true,
         references: {
           model: 'projets',
@@ -30,22 +34,14 @@ module.exports = {
         type: Sequelize.INTEGER,
         primaryKey: true,
       },
-      lien: {
-        type: Sequelize.STRING,
-        allowNull: true,
-      },
-      facture: {
-        type: Sequelize.STRING,
-        allowNull: true,
-      },
-      etat: {
-        type: Sequelize.STRING,
+      seenByUser: {
+        type: Sequelize.BOOLEAN,
         allowNull: false,
-        defaultValue : statusArticleRealisation.waiting,
+        defaultValue: false,
       },
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('articlesrealisation');
+    await queryInterface.dropTable('motifsrealisation');
   }
 };

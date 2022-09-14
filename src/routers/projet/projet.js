@@ -3,47 +3,102 @@ const { UnauthroizedError, BadRequestError, NotFoundError } = require('../../cor
 const { SuccessCreationResponse, SuccessResponse } = require('../../core/api-response')
 const asyncHandler = require('../../helpers/async-handler')
 const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth')
-const { isAdmin, isModo, isSimpleUser, upload, fieldNames, sanitizeFileName } = require('../../core/utils')
-const { Projet, Demande, Tranche, User, Commission, Prevision, Realisation } = require('../../models')
+const { isAdmin, isModo, isSimpleUser, upload, fieldNames, sanitizeFileName, getPagination } = require('../../core/utils')
+const { Projet, Demande, Tranche, User, Commission, Prevision, Realisation, Revenu }
+    = require('../../models')
 const { projetSchema } = require('./schema')
+const sequelize = require('../../database/connection')
+const { Op } = require('sequelize')
 
 
 const router = new express.Router()
 
 router.get('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
-    let condition
 
-    if (isSimpleUser(req)) {
-        condition = { userId: req.user.idUser }
+    const { limit, offset } = getPagination(req.query.page, req.query.size)
+
+    const reqArgs = {
+        search: req.query.search || null,
+        limit,
+        offset,
+        orderBy: req.query.orderBy || null,
+        sortBy: req.query.sortBy || null,
+        etat: req.query.etat || null,
+        idUser: req.query.idUser || null,
     }
 
+    const orderFilter = reqArgs.orderBy ? reqArgs.sortBy ?
+        [reqArgs.sortBy, reqArgs.orderBy] : [reqArgs.sortBy, 'DESC'] : ['createdAt', 'DESC']
+
     const projets = await Projet.findAll({
-        attributes: ['idProjet', 'montant',],
+        attributes: ['idProjet', 'montant',
+            [sequelize.literal('(SELECT COALESCE(sum(revenus.montant),0) FROM revenus WHERE revenus.projetId = Projet.idProjet)'), "totalRevenu"]],
         include: [
             { model: Prevision, attributes: ['numeroTranche', 'etat'], as: "previsions" },
             { model: Realisation, attributes: ['numeroTranche', 'etat'], as: "realisations" },
             {
                 model: Demande, attributes: ['denominationCommerciale', 'avatar'], as: "demande",
-                where: condition,
                 include: [
-                    { model: User, attributes: ['idUser', 'nom', 'prenom'], as: "user" },
+                    {
+                        model: User, attributes: ['idUser', 'nom', 'prenom', 'email'], as: "user",
+                    }
                 ],
             },
             {
                 model: Tranche, attributes: ['nbTranches'], as: "tranche"
             }
-        ]
+        ],
+        where: reqArgs.idUser === null ? true
+            : sequelize.where(sequelize.col("demande.user.idUser"), {
+                [Op.eq]: reqArgs.idUser
+            }
+            ),
+        group: ['idProjet'],
+        having: {
+            [Op.or]: [
+                sequelize.where(
+                    sequelize.col("totalRevenu"), {
+                    [Op.like]: '%' + (reqArgs.search || '') + '%'
+                }),
+                sequelize.where(
+                    sequelize.col("demande.user.email"), {
+                    [Op.like]: '%' + (reqArgs.search || '') + '%'
+                }),
+                sequelize.where(
+                    sequelize.fn("concat",
+                        sequelize.col("demande.user.nom"),
+                        ' ',
+                        sequelize.col("demande.user.prenom")), {
+                    [Op.like]: '%' + (reqArgs.search || '') + '%'
+                }),
+                sequelize.where(
+                    sequelize.fn("concat",
+                        sequelize.col("demande.user.prenom"),
+                        ' ',
+                        sequelize.col("demande.user.nom")), {
+                    [Op.like]: '%' + (reqArgs.search || '') + '%'
+                }),
+                sequelize.where(sequelize.col("demande.denominationCommerciale"), {
+                    [Op.like]: '%' + reqArgs.search + '%'
+                }
+                ),
+                sequelize.where(
+                    sequelize.fn("COALESCE", sequelize.col("Projet.montant"), 0), {
+                    [Op.like]: '%' + reqArgs.search + '%'
+                }
+                )
+            ],
+        },
+        limit,
+        offset,
+        subQuery: false
     })
 
-    // if (projets.length > 0 && searchInput !== '') {
-    //     searchInput = searchInput.trim()
-    //     projets = projets.filter(projet => {
-    //         values = Object.values(projet.toJSON())
-    //         return searchInput.split(' ').every(el => values.some(e => e.toString().includes(el)))
-    //     })
-    // }
+    // const count = await sequelize.query(
+    //     'CALL search_projets_count (:search, :idUser)',
+    //     { replacements: { search: reqArgs.search, idUser: reqArgs.idUser } })
 
-    new SuccessResponse('Liste des projets', { projets }).send(res)
+    return new SuccessResponse('Liste des projets', { projets }).send(res)
 }))
 
 router.get('/:idProjet', jwtVerifyAuth, asyncHandler(async (req, res, next) => {

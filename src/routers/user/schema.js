@@ -1,6 +1,11 @@
 const Joi = require('joi')
 
 module.exports = {
+    addUserSchema : Joi.object({
+        email: Joi.string().email().required(),
+        password: Joi.string().pattern(new RegExp(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/)).required(),
+        roleId : Joi.number().positive().required()
+    }),
     authentication: Joi.object({
         email: Joi.string().email().required(),
         password: Joi.string().pattern(new RegExp(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/)).required()

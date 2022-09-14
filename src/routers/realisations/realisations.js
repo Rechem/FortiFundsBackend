@@ -5,7 +5,7 @@ const asyncHandler = require('../../helpers/async-handler')
 const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth')
 const { isAdmin, isModo, isSimpleUser, statusRealisation, statusArticleRealisation, upload, fieldNames,
     sanitizeFileName, statusPrevision, deleteFile } = require('../../core/utils')
-const { Realisation, Prevision, Projet, Tranche, TypeInvestissement, TypePoste,
+const { Realisation, Prevision, Projet, Tranche, TypeInvestissement, TypePoste, MotifRealisation,
     Investissement, Demande, Salaire, TypeChargeExterne, ChargeExterne, ArticleRealisation } = require('../../models')
 const db = require('../../models');
 const { getValeur, verifyOwnerShip } = require('../../helpers/prevision-realisation')
@@ -291,7 +291,25 @@ router.patch('/article', jwtVerifyAuth,
                     etat: statusArticleRealisation.refused
                 }
 
-                await result.update(body)
+                const message = req.body.message
+
+                if (!message)
+                    throw new BadRequestError('Vous devez spécifier le motif de refus')
+
+                await sequelize.transaction(async (t) => {
+
+                    await result.update(body, { transaction: t })
+
+                    await MotifRealisation.create({
+                        contenuMotif: message,
+                        projetId: req.body.projetId,
+                        numeroTranche: req.body.numeroTranche,
+                        idArticle: req.body.idArticle,
+                        type: req.body.type,
+                        dateMotif: Date.now(),
+                    }, { transaction: t })
+                })
+
 
                 //ADD MESSAGE IN TRANSACATION
 

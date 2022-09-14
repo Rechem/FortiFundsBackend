@@ -8,10 +8,12 @@ module.exports = (sequelize, DataTypes) => {
 
         static associate(model) {
             this.belongsTo(model.Role, { foreignKey: "roleId", as: 'role' })
-            this.hasMany(model.Demande, { foreignKey: "userId" })
+            this.hasMany(model.Demande, { foreignKey: "userId", as: 'demandes' })
             this.hasMany(model.Membre, { foreignKey: "createdBy", as: 'membres' })
             this.hasMany(model.Commission, { foreignKey: "createdBy", as: "commissions" })
             this.hasMany(model.Complement, { foreignKey: "createdBy", as: 'complements' })
+            this.hasMany(model.Ticket, {foreignKey: 'userId', as: 'tickets'})
+            this.hasMany(model.Message, {foreignKey: 'senderId', as: 'messages'})
 
         }
 
@@ -64,11 +66,21 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.STRING,
             notEmpty: true,
             allowNull: true,
+            get() {
+                if (this.getDataValue('nom'))
+                    return this.getDataValue('nom').toString()
+                return ''
+            }
         },
         prenom: {
             type: DataTypes.STRING,
             notEmpty: true,
             allowNull: true,
+            get() {
+                if (this.getDataValue('prenom'))
+                    return this.getDataValue('prenom').toString()
+                return ''
+            }
         },
         nomPrenom: {
             type: DataTypes.VIRTUAL,
@@ -129,7 +141,12 @@ module.exports = (sequelize, DataTypes) => {
         },
         avatar: {
             type: DataTypes.STRING,
-            allowNull: true
+            allowNull: true,
+            get() {
+                if (this.getDataValue('avatar'))
+                    return this.getDataValue('avatar').toString()
+                return null
+            }
         }
     },
         {
@@ -145,13 +162,13 @@ module.exports = (sequelize, DataTypes) => {
     const createUserMiddleware = async (user, _) => {
         user.email = user.email.toLowerCase()
         user.password = await bcryptjs.hash(user.password, 10)
-        user.changedPassword = new Date()
+        user.changedPassword = new Date.now()
     }
 
     const encryptPasswordIfChanged = async (user, _) => {
         if (user.changed('password')) {
             user.password = await bcryptjs.hash(user.password, 10)
-            user.changedPassword = new Date()
+            user.changedPassword = new Date.now()
         }
     }
 

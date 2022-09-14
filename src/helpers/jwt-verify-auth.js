@@ -2,7 +2,7 @@ const { User, Role } = require('../models')
 const jwt = require('jsonwebtoken')
 const createCookie = require('../core/create-cookie')
 const { TokenExpiredError } = require('jsonwebtoken')
-const { removeTokens } = require('../core/generate-token')
+const { removeTokens, refreshToken } = require('../core/generate-token')
 const asyncHandler = require('./async-handler')
 const {BadRequestError, AccessTokenError, AuthFailureError, InternalError} =  require('../core/api-error')
 

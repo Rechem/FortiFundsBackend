@@ -7,7 +7,6 @@ const unlinkAsync = promisify(fs.unlink)
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        console.log(dir);
         const dir = `./public/` + file.fieldname
         if (!fs.existsSync(dir))
             return fs.mkdir(dir, error => cb(error, dir))
@@ -164,6 +163,17 @@ const statusDemande = {
     programmee: 'Programmée',
     preselectionnee: 'Préselectionnée',
 }
+const statusTicket = {
+    ouvert: 'Ouvert',
+    ferme: 'Fermé',
+}
+
+const motifTicket = {
+    rdv: 'Demander un rendez-vous',
+    renseignement: 'Demander un renseignement',
+    reclamation: 'Faire une réclamation',
+    autre: 'Autre',
+}
 
 
 function sanitizeFileName(name) {
@@ -211,7 +221,7 @@ async function deleteFile(fileNameToDelete) {
     }
 }
 
-const PAGESIZE = 4
+const PAGESIZE = 10
 
 const getPagination = (page, size) => {
     const limit = size ? +size : PAGESIZE;
@@ -219,10 +229,9 @@ const getPagination = (page, size) => {
     return { limit, offset };
 };
 
-const getPagingData = (list, page, limit) => {
+const getPagingData = (list, page) => {
     const { count: totalCount, rows : data } = list;
     const currentPage = page ? +page : 0;
-    // const totalPages = Math.ceil(count / limit);
     return { data, page: currentPage, totalCount, };
 };
 
@@ -238,6 +247,8 @@ module.exports = {
     upload,
     fieldNames,
     statusArticleRevenu,
+    statusTicket,
+    motifTicket,
     deleteFile,
     sanitizeFileName,
     flattenObject,

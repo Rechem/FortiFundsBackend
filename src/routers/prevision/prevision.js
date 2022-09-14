@@ -5,11 +5,12 @@ const asyncHandler = require('../../helpers/async-handler')
 const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth')
 const { isAdmin, isModo, sanitizeFileName, isSimpleUser, statusPrevision, upload, fieldNames, statusRealisation } = require('../../core/utils')
 const { Prevision, Projet, Tranche, TypeInvestissement, TypePoste,
-    Investissement, Demande, Salaire, TypeChargeExterne, ChargeExterne, Realisation } = require('../../models')
+    Investissement, Demande, Salaire, TypeChargeExterne, ChargeExterne, Realisation, MotifPrevision } = require('../../models')
 const db = require('../../models');
 const { investissementChargeSchema, salaireSchema, previsionPatchSchema } = require('./schema')
 const _ = require('lodash')
 const { getValeur, verifyOwnerShip } = require('../../helpers/prevision-realisation')
+const sequelize = require('../../database/connection')
 
 const router = new express.Router()
 
@@ -513,21 +514,44 @@ router.patch('/:projetId/:numeroTranche', jwtVerifyAuth,
                     * prevision.projet.montant;
 
                 if (valeurPrevision === 0)
-                throw new BadRequestError(`Vous n'avez inséré aucun article`)
-                
+                    throw new BadRequestError(`Vous n'avez inséré aucun article`)
+
                 if (valeurPrevision > valeurTranche)
-                throw new BadRequestError(`Le montant total de la prévision dépasse le montant de ${valeurTranche}`)
+                    throw new BadRequestError(`Le montant total de la prévision dépasse le montant de ${valeurTranche}`)
 
                 prevision.etat = newEtat
-                
+
                 await prevision.save()
                 break;
             case statusPrevision.accepted:
-            case statusPrevision.refused:
                 if (!isAdmin(req) || prevision.etat !== statusPrevision.pending)
                     throw new UnauthroizedError();
 
                 await prevision.update({ etat: newEtat })
+
+                break;
+            case statusPrevision.refused:
+                if (!isAdmin(req) || prevision.etat !== statusPrevision.pending)
+                    throw new UnauthroizedError();
+
+                const message = req.body.message
+
+                if (!message)
+                    throw new BadRequestError('Vous devez spécifier le motif de refus')
+
+                await sequelize.transaction(async (t) => {
+
+                    await prevision.update(
+                        { etat: newEtat },
+                        { transaction: t })
+
+                    await MotifPrevision.create({
+                        contenuMotif: message,
+                        projetId, numeroTranche,
+                        dateMotif: Date.now(),
+                    }, { transaction: t })
+                })
+
 
                 // if (prevision.etat === statusPrevision.refused && req.body.message){
                 // TODO WITH TRANSACTION

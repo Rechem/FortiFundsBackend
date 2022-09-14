@@ -6,6 +6,7 @@ const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth')
 const { User, Membre, Commission } = require('../../models')
 const { roles } = require('../../core/utils')
 const { ValidationError } = require('sequelize')
+const sequelize = require('../../database/connection')
 const { isAdmin, isModo, isSimpleUser } = require('../../core/utils')
 const { membreSchema } = require('./schema')
 
@@ -43,16 +44,20 @@ router.get('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
 
         let searchInput = req.query.searchInput || ''
 
-        let membres = await Membre.findAll({ attributes: ['idMembre', 'nomMembre', 'prenomMembre', 'emailMembre'] })
-        if (membres.length > 0 && searchInput !== '') {
-            searchInput = searchInput.trim()
-            membres = membres.filter(membre => {
-                values = Object.values(membre.toJSON())
-                return searchInput.split(' ').every(el => values.some(e => e.toString().includes(el)))
-            })
-        }
+        // let membres = await Membre.findAll({ attributes: ['idMembre', 'nomMembre', 'prenomMembre', 'emailMembre'] })
+        // if (membres.length > 0 && searchInput !== '') {
+        //     searchInput = searchInput.trim()
+        //     membres = membres.filter(membre => {
+        //         values = Object.values(membre.toJSON())
+        //         return searchInput.split(' ').every(el => values.some(e => e.toString().includes(el)))
+        //     })
+        // }
 
-        new SuccessResponse('Liste des Membres', { membres }).send(res)
+        const membres = await sequelize
+            .query('CALL search_membre (:search)',
+                { replacements: { search: searchInput } })
+
+        new SuccessResponse('Liste des Membres', {membres}).send(res)
 
     } else {
         throw new UnauthroizedError()

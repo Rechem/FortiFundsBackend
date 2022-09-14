@@ -37,7 +37,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       primaryKey: true,
       references: {
-        model: 'previsions',
+        model: 'realisations',
         key: 'numeroTranche',
       }
     },

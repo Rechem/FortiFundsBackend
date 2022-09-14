@@ -6,6 +6,7 @@ const StatusCode = {
     FORBIDDEN: 403,
     NOT_FOUND: 404,
     INTERNAL_ERROR: 500,
+    ALREADY_EXISTS : 409
 }
 
 const Status = {
@@ -32,6 +33,12 @@ class ApiResponse {
             responseObject.data = this.data
         }
         res.status(this.statusCode).json(responseObject);
+    }
+}
+
+class AlreadyExistsResponse extends ApiResponse {
+    constructor(message = 'Already exists') {
+        super(Status.ERROR, StatusCode.ALREADY_EXISTS, message);
     }
 }
 
@@ -78,6 +85,7 @@ class SuccessCreationResponse extends ApiResponse {
 }
 
 module.exports = {
+    AlreadyExistsResponse,
     UnauthroizedResponse,
     NotFoundResponse,
     ForbiddenResponse,

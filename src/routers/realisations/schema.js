@@ -9,6 +9,7 @@ const articleRealisationSchema = {
     lienOuFacture: Joi.string().valid('facture', 'lien'),
     idArticle: Joi.number().positive(),
     etat : Joi.string().required().valid(...Object.values(statusArticleRealisation)),
+    message: Joi.string().allow(null, '')
 }
 
 module.exports = {

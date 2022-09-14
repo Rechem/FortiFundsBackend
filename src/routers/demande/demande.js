@@ -1,13 +1,13 @@
 const express = require('express')
 const path = require('path')
 const multer = require('multer')
-const { Demande, User, Complement, Commission } = require('../../models');
+const { Demande, User, Complement, Commission, MotifDemande } = require('../../models');
 const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth');
 const asyncHandler = require('../../helpers/async-handler')
 const { SuccessCreationResponse, SuccessResponse } = require('../../core/api-response')
 const { BadRequestError, UnauthroizedError, NotFoundError } = require('../../core/api-error')
 const { ValidationError } = require('sequelize')
-const { roles, statusDemande, flattenObject, sanitizeFileName } = require('../../core/utils')
+const { roles, statusDemande, flattenObject, sanitizeFileName, getPagination, getPagingData } = require('../../core/utils')
 const { isAdmin, isModo, isSimpleUser, fieldNames, upload } = require('../../core/utils')
 const { Op } = require('sequelize')
 const _ = require('lodash')
@@ -15,6 +15,74 @@ const { sequelize } = require('../../models/index');
 const commission = require('../../models/commission');
 
 const router = new express.Router()
+
+const findDemandesAndCountAll = async (
+    { idUser, search, orderBy, sortBy, limit, offset, etat }
+) => {
+    rows = await sequelize.query(
+        'CALL search_demandes (:idUser, :search,:limit, :offset, :sortBy, :orderBy, :etat)',
+        { replacements: { idUser, search, limit, offset, sortBy, orderBy, etat } })
+    count = await sequelize.query('CALL search_demandes_count (:idUser, :search, :etat)',
+        { replacements: { idUser, search, etat } })
+
+    return { rows, count: count[0].count }
+
+}
+
+//get all demandes
+router.get('/', jwtVerifyAuth,
+    asyncHandler(async (req, res, next) => {
+
+        let idUser = null
+
+        if (isSimpleUser(req)) {
+            idUser = req.user.idUser
+        } else {
+            if (req.query.idUser) {
+                idUser = req.query.idUser
+            }
+        }
+
+        const { limit, offset } = getPagination(req.query.page, req.query.size)
+
+        const reqArgs = {
+            idUser,
+            search: req.query.search || null,
+            limit,
+            offset,
+            orderBy: req.query.orderBy || null,
+            sortBy: req.query.sortBy || null,
+            etat: req.query.etat || null,
+        }
+
+        const response = await findDemandesAndCountAll(reqArgs)
+
+        return new SuccessResponse('Liste des Demandes',
+            getPagingData(response, req.query.page)
+        ).send(res)
+    }))
+
+router.get('/:idDemande', jwtVerifyAuth,
+    asyncHandler(async (req, res, next) => {
+        const idDemande = req.params.idDemande
+
+        const demande = await Demande.findByPk(idDemande, {
+            attributes: { exclude: ['createdAt', 'updatedAt', 'avatar', 'seenByUser',] },
+            include: [
+                { model: User, attributes: ['idUser', 'nom', 'prenom', 'avatar'], as: 'user' },
+                { model: Complement, attributes: ['idComplement', 'nomComplement', 'cheminComplement'], as: 'complements' },
+            ]
+        })
+
+        if (!demande)
+            throw new NotFoundError("Demande introuvable")
+
+        if (isAdmin(req) || isModo(req) ||
+            (isSimpleUser(req) && demande.user.idUser == req.user.idUser))
+            new SuccessResponse('Demande', { demande }).send(res)
+        else
+            throw new NotFoundError()
+    }))
 
 //add new demande
 router.post('/', jwtVerifyAuth,
@@ -56,123 +124,41 @@ router.post('/', jwtVerifyAuth,
 
     }))
 
-//get user's demandes
-router.get('/user/:idUser', jwtVerifyAuth,
-    asyncHandler(async (req, res, next) => {
-        const userId = req.params.idUser
-        if (isAdmin(req) || isModo(req) ||
-            (isSimpleUser(req) && userId == req.user.idUser)) {
-            let searchInput = req.query.searchInput || ''
-
-            let demandes = await Demande.findAll({
-                where: {
-                    //use req.user from token middleware
-                    userId,
-                }
-            });
-
-            if (demandes.length > 0 && searchInput !== '') {
-                searchInput = searchInput.trim()
-                demandes = demandes.filter(e => {
-                    return e.denominationCommerciale.includes(searchInput)
-                        || e.nbEmploye.toString().includes(searchInput)
-                        || e.dateCreation.toString().includes(searchInput)
-                        || e.nif.includes(searchInput)
-                        || e.nbLabel.includes(searchInput)
-                        || e.formeJuridique.includes(searchInput)
-                })
-            }
-            new SuccessResponse('Demandes utilisateur', { demandes }).send(res)
-        } else {
-            throw new NotFoundError()
-        }
-    }))
-
-//get all demandes
-router.get('/', jwtVerifyAuth,
-    asyncHandler(async (req, res, next) => {
-
-        let searchInput = req.query.searchInput || ''
-
-        let condition = {}
-
-        if (isSimpleUser(req)) {
-            condition = { userId: req.user.idUser }
-        }
-
-        let demandes = await Demande.findAll({
-            where: condition,
-            include: [{ model: User, attributes: ['idUser', 'nom', 'prenom'], as: 'user' }]
-        });
-
-        searchInput = searchInput.trim()
-        if (demandes.length > 0 && searchInput !== '') {
-
-
-            const fields = [
-                "denominationCommerciale",
-                "nbEmploye",
-                "dateCreation",
-                "nif",
-                "nbLabel",
-                "formeJuridique",
-                "user.nom",
-                "user.prenom",
-            ]
-            searchInput = searchInput.toLowerCase().trim()
-            demandes = demandes.filter(demande => {
-                let values = Object.values(_.pick(flattenObject(demande.toJSON()), fields))
-                return searchInput.split(' ').every(el => values.some(e => e.toLowerCase().includes(el)))
-            })
-        }
-
-        demandesToReturn = demandes.map((d) => _.pick(d, ['idDemande', 'etat', 'formeJuridique', 'denominationCommerciale', 'montant']))
-
-        new SuccessResponse('Liste des Demandes', {
-            demandes : demandesToReturn }).send(res)
-        // res.status(200).json({ status: "success", demandes })
-    }))
-
 // get all demandes with server side pagination
 // router.get('/', jwtVerifyAuth,
 //     asyncHandler(async (req, res, next) => {
 //         // let searchInput = req.query.q || ''
-//         const fields = [
-//             "denominationCommerciale",
-//             "nbEmploye",
-//             "dateCreation",
-//             "nif",
-//             "nbLabel",
-//             "formeJuridique"
-//         ]
 
 //         const { search, orderBy, sortBy, page, size, } = req.query
 
+//         // let condition = null
 //         let condition = null
 
-//         if(isSimpleUser(req)){
-//             condition = {userId : req.user.idUser}
+//         if (isSimpleUser(req)) {
+//             condition = { userId: req.user.idUser }
 //         }
 
 //         if (search) {
-//             let query = search ? search.split(' ') : ''
-//             query = query.map(function (item) {
-//                 return {
-//                     [Op.like]: '%' + item + '%'
-//                 };
-//             });
-//             const filters = {}
-//             fields.forEach((item) => (filters[item] = {[Op.or]: query}))
-
-//             // const filters = []
-//             // fields.forEach((item) => (
-//             //     filters.push(sequelize.where(
-//             //         sequelize.cast(sequelize.col(
-//             //             `Demande.${item}`),"varchar"), {[Op.or]: query}))))
-
-//             condition = {...condition, [Op.or]: filters }
-
-//             console.log(condition);
+//             condition = {
+//                 ...condition,
+//                 [Op.or]: [
+//                     sequelize.where(
+//                         sequelize.fn('LOWER', sequelize.col('denominationCommerciale')),
+//                         { [Op.like]: `%${search}%` }),
+//                     sequelize.where(
+//                         sequelize.fn('LOWER', sequelize.col('nbEmploye')),
+//                         { [Op.like]: `%${search}%` }),
+//                     sequelize.where(
+//                         sequelize.fn('LOWER', sequelize.col('nif')),
+//                         { [Op.like]: `%${search}%` }),
+//                     sequelize.where(
+//                         sequelize.fn('LOWER', sequelize.col('nbLabel')),
+//                         { [Op.like]: `%${search}%` }),
+//                     sequelize.where(
+//                         sequelize.fn('LOWER', sequelize.col('formeJuridique')),
+//                         { [Op.like]: `%${search}%` }),
+//                 ]
+//             }
 //         }
 
 //         const { limit, offset } = getPagination(page, size)
@@ -181,16 +167,14 @@ router.get('/', jwtVerifyAuth,
 
 //         const demandes = await Demande.findAndCountAll({
 //             where: condition,
-//                 limit,
-//                 offset,
-//                 order: [orderFilter],
-//                 // include: [{ model: User, attributes: ['idUser', 'nom', 'prenom'], as: 'user' }]
-//             });
+//             limit,
+//             offset,
+//             order: [orderFilter],
+//         });
 
-//         new SuccessResponse('Liste des Demandes',  
-//             getDemandesPagingData(demandes, page, limit)
-//             ).send(res)
-//         // res.status(200).json({ status: "success", demandes })
+//         new SuccessResponse('Liste des Demandes',
+//             getPagingData(demandes, page, limit)
+//         ).send(res)
 //     }))
 
 //download business plan
@@ -208,27 +192,6 @@ router.post('/:idDemande/business-plan/', jwtVerifyAuth,
     }))
 
 //get demande by id
-router.get('/:idDemande', jwtVerifyAuth,
-    asyncHandler(async (req, res, next) => {
-        const idDemande = req.params.idDemande
-
-        const demande = await Demande.findByPk(idDemande, {
-            attributes: {exclude : ['createdAt', 'updatedAt', 'avatar', 'seenByUser',]},
-            include: [
-                { model: User, attributes: ['idUser', 'nom', 'prenom', 'avatar'], as: 'user' },
-                { model: Complement, attributes: ['idComplement', 'nomComplement', 'cheminComplement'], as: 'complements' },
-            ]
-        })
-
-        if (!demande)
-            throw new NotFoundError("Demande introuvable")
-
-        if (isAdmin(req) || isModo(req) ||
-            (isSimpleUser(req) && demande.user.idUser == req.user.idUser))
-            new SuccessResponse('Demande', { demande }).send(res)
-        else
-            throw new NotFoundError()
-    }))
 
 router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
 
@@ -245,6 +208,9 @@ router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     const demande = await Demande.findByPk(idDemande)
     if (!demande)
         throw new NotFoundError('Cette demande n\'existe pas.')
+
+    if (demande.etat === statusDemande.accepted)
+        throw new UnauthroizedError('Cette demande a déjà été acceptée')
 
     switch (nouveauEtat) {
         case statusDemande.programmee:
@@ -266,45 +232,37 @@ router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
                     etat: nouveauEtat,
                     commissionId: idCommission
                 }, { transaction: t })
-
-                const message = req.body.message
-
-                if (message) {
-                    //TODO SEND MESSAGE
-                }
-
             })
             break;
         case statusDemande.refused:
 
+            const message = req.body.message
+
+            if (!message)
+                throw new BadRequestError('Vous devez spécifier le motif de refus')
+
             await sequelize.transaction(async (t) => {
 
                 await demande.update({
                     etat: nouveauEtat,
                 }, { transaction: t })
 
-                const message = req.body.message
-
-                if (message) {
-                    //TODO SEND MESSAGE
-                }
+                await MotifDemande.create({
+                    contenuMotif: message,
+                    demandeId: demande.idDemande,
+                    dateMotif: Date.now(),
+                }, { transaction: t })
             })
 
             break;
 
-        case stastatusDemandetus.preselectionnee:
+        case statusDemande.preselectionnee:
 
             await sequelize.transaction(async (t) => {
 
                 await demande.update({
                     etat: nouveauEtat,
                 }, { transaction: t })
-
-                const message = req.body.message
-
-                if (message) {
-                    //TODO SEND MESSAGE
-                }
             })
             break;
         case statusDemande.pending:
@@ -341,7 +299,11 @@ router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
                 const message = req.body.message
 
                 if (message) {
-                    //TODO SEND MESSAGE
+                    await MotifDemande.create({
+                        contenuMotif: message,
+                        demandeId: demande.idDemande,
+                        dateMotif: Date.now(),
+                    }, { transaction: t })
                 }
             })
             break;
@@ -351,18 +313,5 @@ router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
 
     new SuccessResponse('Demande mise à jour avec succès').send(res)
 }))
-
-//download complements
-router.post('/:idDemande/complement/', jwtVerifyAuth,
-    asyncHandler(async (req, res, next) => {
-
-        const idDemande = req.params.idDemande
-
-        const demande = await Demande.findByPk(idDemande)
-        if (!demande)
-            throw new NotFoundError("Demande introuvable")
-
-        res.download(demande.businessPlan, demande.businessPlan.match(new RegExp(/[a-zA-Z-/_.0-9]+$/g)));
-    }))
 
 module.exports = router

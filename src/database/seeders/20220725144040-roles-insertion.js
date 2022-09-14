@@ -5,9 +5,9 @@ const { roles } = require('../../models/utils')
 module.exports = {
   async up(queryInterface, Sequelize) {
     await Role.bulkCreate([
-      { idRole: 1, nomRole: roles.roleSimpleUser, createdAt: new Date(), updatedAt: new Date() },
-      { idRole: 2, nomRole: roles.roleModerator, createdAt: new Date(), updatedAt: new Date() },
-      { idRole: 3, nomRole: roles.roleAdmin, createdAt: new Date(), updatedAt: new Date() },
+      { idRole: 1, nomRole: roles.roleSimpleUser, createdAt: new Date.now(), updatedAt: new Date.now() },
+      { idRole: 2, nomRole: roles.roleModerator, createdAt: new Date.now(), updatedAt: new Date.now() },
+      { idRole: 3, nomRole: roles.roleAdmin, createdAt: new Date.now(), updatedAt: new Date.now() },
     ]);
   },
 

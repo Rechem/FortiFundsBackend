@@ -8,10 +8,11 @@ module.exports = (sequelize, DataTypes) => {
         static associate(model) {
             this.belongsTo(model.User, { foreignKey: "userId", as: 'user' })
             this.belongsTo(model.Commission, { foreignKey: "commissionId", as: "commission" },)
+            this.hasOne(model.Projet, { foreignKey: "demandeId", as: 'projet' })
             this.hasMany(model.Complement, { foreignKey: "demandeId", as: 'complements' })
         }
     }
-    
+
     Demande.init({
         idDemande: {
             type: DataTypes.INTEGER,
@@ -21,9 +22,9 @@ module.exports = (sequelize, DataTypes) => {
         nbEmploye: {
             type: DataTypes.INTEGER,
             allowNull: false,
-            get(){
+            get() {
                 // console.log(this.getDataValue('nbEmploye'));
-                if(this.getDataValue('nbEmploye'))
+                if (this.getDataValue('nbEmploye'))
                     return this.getDataValue('nbEmploye').toString()
                 return ''
             }
@@ -31,8 +32,8 @@ module.exports = (sequelize, DataTypes) => {
         dateCreation: {
             type: DataTypes.DATEONLY,
             allowNull: false,
-            get(){
-                if(this.getDataValue('dateCreation'))
+            get() {
+                if (this.getDataValue('dateCreation'))
                     return dayjs(this.getDataValue('dateCreation')).format("DD/MM/YYYY")
                 return ''
             }

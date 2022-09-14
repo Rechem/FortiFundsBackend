@@ -4,6 +4,7 @@ const {
     ForbiddenResponse,
     BadRequestResponse,
     InternalErrorResponse,
+    AlreadyExistsResponse,
   } = require ('./api-response')
 
 const ErrorType = {
@@ -17,6 +18,7 @@ const ErrorType = {
     NO_DATA: 'NoDataError',
     BAD_REQUEST: 'BadRequestError',
     FORBIDDEN: 'ForbiddenError',
+    ALREADY_EXISTS : 'AlreadyExistsError'
 }
 
 class ApiError extends Error {
@@ -42,6 +44,8 @@ class ApiError extends Error {
                 return new BadRequestResponse(err.message).send(res);
             case ErrorType.FORBIDDEN:
                 return new ForbiddenResponse(err.message).send(res);
+            case ErrorType.ALREADY_EXISTS:
+                return new AlreadyExistsResponse(err.message).send(res);
             default: {
                 let message = err.message;
                 // Do not send failure message in production as it may send sensitive data
@@ -49,6 +53,12 @@ class ApiError extends Error {
                 return new InternalErrorResponse(message).send(res);
             }
         }
+    }
+}
+
+class AlreadyExistsError extends ApiError {
+    constructor(message = 'Cet utilisateur existe déjà') {
+        super(ErrorType.ALREADY_EXISTS, message);
     }
 }
 
@@ -119,6 +129,7 @@ class AccessTokenError extends ApiError {
 }
 
 module.exports = {
+    AlreadyExistsError,
     ApiError,
     AuthFailureError,
     InternalError,

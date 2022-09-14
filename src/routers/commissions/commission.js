@@ -5,10 +5,10 @@ const asyncHandler = require('../../helpers/async-handler')
 const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth')
 // const User = require('../../models/user')
 const { Commission, MembreCommission, Membre, Demande, Projet } = require('../../models')
-const { roles, flattenObject, statusDemande, statusCommission } = require('../../core/utils')
+const { roles, flattenObject, statusDemande, statusCommission, getPagination, getPagingData } = require('../../core/utils')
 const { ValidationError, Op } = require('sequelize')
 const { commissionSchema, acceptCommissionSchema } = require('./schema')
-const sequelize = require('../../database/connection')
+const { sequelize } = require('../../models/index');
 const multer = require('multer')
 const path = require('path')
 const { isAdmin, isModo, isSimpleUser, fieldNames, upload, sanitizeFileName } = require('../../core/utils')
@@ -25,10 +25,8 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     try {
         const { error } = commissionSchema.validate(req.body);
         if (error) {
-            console.log("here ?", error);
             throw new BadRequestError()
         }
-        console.log("here ?")
         await sequelize.transaction(async (t) => {
 
             const commissionBody = {
@@ -60,69 +58,41 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     }
 }))
 
+const findCommissionsAndCountAll = async (
+    { search, orderBy, sortBy, limit, offset, etat }
+) => {
+    const rows = await sequelize.query(
+        'CALL search_commissions (:search,:etat, :limit, :offset, :sortBy, :orderBy )',
+        { replacements: { search, etat, limit, offset, sortBy, orderBy } })
+    const count = await sequelize.query('CALL search_commissions_count (:search, :etat)',
+        { replacements: { search, etat } })
+
+    return { rows, count: count[0].count }
+
+}
+
 //get comissions
 router.get('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     if (!isAdmin(req) && !isModo(req))
         throw new UnauthroizedError()
 
-    let searchInput = req.query.searchInput || ''
+        const { limit, offset } = getPagination(req.query.page, req.query.size)
 
-    let commissions = await Commission.findAll({
-        attributes: ['idCommission', 'dateCommission', 'etat',
-            [sequelize.fn('COUNT', sequelize.col('demandes.commissionId')), 'nbDemandes']],
-        include: [
-            { model: Membre, attributes: ['nomMembre', 'prenomMembre'], as: 'president' },
-            { model: Demande, attributes: [], as: "demandes" },
-        ],
-        group: ['idCommission'],
-    })
+        const reqArgs = {
+            search: req.query.search || null,
+            limit,
+            offset,
+            orderBy: req.query.orderBy || null,
+            sortBy: req.query.sortBy || null,
+            etat: req.query.etat || null,
+        }
 
-    if (commissions.length > 0 && searchInput !== '') {
-        const fields = [
-            "dateCommission",
-            "president.nomMembre",
-            "president.prenomMembre",
-            "nbDemandes",
-        ]
+        const response = await findCommissionsAndCountAll(reqArgs)
 
-        searchInput = searchInput.toLowerCase().trim()
-        commissions = commissions.filter(commission => {
-            let commissionString = _.pick(flattenObject(commission.toJSON()), fields)
-            commissionString.nbDemandes = commissionString.nbDemandes.toString()
-            values = Object.values(commissionString)
-            return searchInput.split(' ').every(el => values.some(e => e.toLowerCase().includes(el)))
-        })
+        return new SuccessResponse('Liste des Commissions',
+        getPagingData(response, req.query.page)).send(res)
     }
-
-    new SuccessResponse('Liste des Commissions', { commissions }).send(res)
-}))
-
-//get commission by id
-router.get('/:idCommission', jwtVerifyAuth,
-    asyncHandler(async (req, res, next) => {
-        if (!isAdmin(req) && !isModo(req))
-            throw new UnauthroizedError()
-
-        const idCommission = req.params.idCommission
-
-        const commission = await Commission.findOne({
-            where: { idCommission },
-            attributes: ['idCommission', 'dateCommission', 'etat', 'rapportCommission'],
-            include: [
-                { model: Membre, attributes: ['idMembre', 'nomMembre', 'prenomMembre'], as: 'president' },
-                { model: Membre, attributes: ['idMembre', 'nomMembre', 'prenomMembre'], through: { attributes: [], }, as: 'membres' },
-                {
-                    model: Demande, attributes: ['idDemande', 'etat', 'denominationCommerciale',
-                        'formeJuridique', 'montant'], as: 'demandes'
-                },
-            ],
-        })
-
-        if (!commission)
-            throw new NotFoundError("Demande introuvable")
-
-        new SuccessResponse('Commission', { commission }).send(res)
-    }))
+))
 
 //update commission
 router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
@@ -237,6 +207,33 @@ router.patch('/accept', jwtVerifyAuth,
                 throw e
 
         }
+    }))
+
+//get commission by id
+router.get('/:idCommission', jwtVerifyAuth,
+    asyncHandler(async (req, res, next) => {
+        if (!isAdmin(req) && !isModo(req))
+            throw new UnauthroizedError()
+
+        const idCommission = req.params.idCommission
+
+        const commission = await Commission.findOne({
+            where: { idCommission },
+            attributes: ['idCommission', 'dateCommission', 'etat', 'rapportCommission'],
+            include: [
+                { model: Membre, attributes: ['idMembre', 'nomMembre', 'prenomMembre'], as: 'president' },
+                { model: Membre, attributes: ['idMembre', 'nomMembre', 'prenomMembre'], through: { attributes: [], }, as: 'membres' },
+                {
+                    model: Demande, attributes: ['idDemande', 'etat', 'denominationCommerciale',
+                        'formeJuridique', 'montant'], as: 'demandes'
+                },
+            ],
+        })
+
+        if (!commission)
+            throw new NotFoundError("Demande introuvable")
+
+        new SuccessResponse('Commission', { commission }).send(res)
     }))
 
 module.exports = router
