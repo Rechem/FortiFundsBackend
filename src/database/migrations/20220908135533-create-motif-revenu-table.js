@@ -2,19 +2,6 @@
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('motifsrevenu', {
-      idRevenu: {
-        type: Sequelize.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-      },
-      contenuMotif: {
-        type: Sequelize.STRING,
-        allowNull: false,
-      },
-      dateMotif: {
-        type: Sequelize.DATE,
-        primaryKey: true,
-      },
       projetId: {
         type: Sequelize.INTEGER,
         allowNull: false,
@@ -23,6 +10,24 @@ module.exports = {
           model: 'projets',
           key: 'idProjet',
         },
+      },
+      idArticleRevenu: {
+        type: Sequelize.INTEGER,
+        primaryKey: true,
+        references: {
+          model: 'articlesrevenu',
+          key: 'idArticleRevenu',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'CASCADE',
+      },
+      dateMotif: {
+        type: Sequelize.DATE,
+        primaryKey: true,
+      },
+      contenuMotif: {
+        type: Sequelize.STRING,
+        allowNull: false,
       },
       seenByUser: {
         type: Sequelize.BOOLEAN,

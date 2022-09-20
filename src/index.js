@@ -32,7 +32,7 @@ const port = process.env.PORT || 3001
 
 //this shit is necessary
 let corsOptions = {
-    origin: ['http://localhost:3000'],
+    origin: [process.env.FRONTEND_URL],
     credentials: true,
     //this one to get filename as we download it
     // exposedHeaders: ['Content-Disposition']
@@ -72,8 +72,8 @@ app.use(async (err, req, res, next) => {
         deleteFile(req.file.path)
 
     //DELETE IN production
-    console.log(err.stack);
-    console.log(err.message);
+    // console.log(err.stack);
+    // console.log(err.message);
     if (err instanceof ApiError) {
         ApiError.handle(err, res);
     } else {

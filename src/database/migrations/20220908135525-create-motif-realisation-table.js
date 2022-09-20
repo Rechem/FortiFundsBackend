@@ -2,15 +2,11 @@
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('motifsrealisation', {
-      contenuMotif: {
-        type: Sequelize.STRING,
-        allowNull: false,
-      },
       dateMotif: {
         type: Sequelize.DATE,
         primaryKey: true,
       },
-      numeroTranche : {
+      numeroTranche: {
         type: Sequelize.INTEGER,
         primaryKey: true,
         references: {
@@ -18,7 +14,7 @@ module.exports = {
           key: 'numeroTranche',
         }
       },
-      projetId : {
+      projetId: {
         type: Sequelize.INTEGER,
         primaryKey: true,
         references: {
@@ -29,10 +25,26 @@ module.exports = {
       type: {
         type: Sequelize.STRING,
         primaryKey: true,
+        allowNull: false,
+        //used to be comented
+        references: {
+          model: 'articlesrealisation',
+          key: 'type',
+        },
       },
       idArticle: {
         type: Sequelize.INTEGER,
         primaryKey: true,
+        allowNull: false,
+        //used to be comented
+        references: {
+          model: 'articlesrealisation',
+          key: 'idArticle',
+        }
+      },
+      contenuMotif: {
+        type: Sequelize.STRING,
+        allowNull: false,
       },
       seenByUser: {
         type: Sequelize.BOOLEAN,

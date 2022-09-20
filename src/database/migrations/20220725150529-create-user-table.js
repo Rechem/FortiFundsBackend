@@ -60,9 +60,20 @@ module.exports = {
           references: {
             model: 'roles',
             key: 'idRole',
+            onDelete: 'SET NULL',
           }
         },
         completedSignUp: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+        confirmed: {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+        banned: {
           type: DataTypes.BOOLEAN,
           allowNull: false,
           defaultValue: false,

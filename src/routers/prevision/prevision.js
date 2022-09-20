@@ -42,7 +42,7 @@ router.get('/:projetId/:numeroTranche', jwtVerifyAuth,
         const maxTranche = prevision.projet.previsions.length === 0 ? 0 : Math.max(...prevision.projet.previsions.map(p => p.numeroTranche))
 
 
-        new SuccessResponse('List des previsions',
+        new SuccessResponse('Prevision',
             { prevision: { ..._.omit(prevision.toJSON(), ['projet.previsions']), maxTranche, valeurPrevision } }).send(res)
     }))
 
@@ -132,6 +132,9 @@ router.patch('/salaires', jwtVerifyAuth,
         if (projet.demande.userId !== req.user.idUser)
             throw new NotFoundError()
 
+        if (projet.previsions.length === 0)
+            throw new NotFoundError()
+
         if (projet.previsions[0].etat !== statusPrevision.brouillon &&
             projet.previsions[0].etat !== statusPrevision.refused)
             throw new UnauthroizedError()
@@ -186,6 +189,9 @@ router.patch('/investissementsChargesExternes', jwtVerifyAuth,
             throw new NotFoundError()
 
         if (projet.demande.userId !== req.user.idUser)
+            throw new NotFoundError()
+
+        if (projet.previsions.length === 0)
             throw new NotFoundError()
 
         if (projet.previsions[0].etat !== statusPrevision.brouillon &&
@@ -281,6 +287,9 @@ router.delete('/:projetId/:numeroTranche/:typePrevision/:id',
         if (projet.demande.userId !== req.user.idUser)
             throw new NotFoundError()
 
+        if (projet.previsions.length === 0)
+            throw new NotFoundError()
+
         if (projet.previsions[0].etat !== statusPrevision.brouillon &&
             projet.previsions[0].etat !== statusPrevision.refused)
             throw new UnauthroizedError()
@@ -352,6 +361,9 @@ router.post('/investissementsChargesExternes', jwtVerifyAuth,
         if (projet.demande.userId !== req.user.idUser)
             throw new NotFoundError()
 
+        if (projet.previsions.length === 0)
+            throw new NotFoundError()
+
         if (projet.previsions[0].etat !== statusPrevision.brouillon &&
             projet.previsions[0].etat !== statusPrevision.refused)
             throw new UnauthroizedError()
@@ -418,6 +430,9 @@ router.post('/salaires', jwtVerifyAuth,
         if (projet.demande.userId !== req.user.idUser)
             throw new NotFoundError()
 
+        if (projet.previsions.length === 0)
+            throw new NotFoundError()
+
         if (projet.previsions[0].etat !== statusPrevision.brouillon &&
             projet.previsions[0].etat !== statusPrevision.refused)
             throw new UnauthroizedError()
@@ -455,12 +470,12 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     if (!projet.tranche)
         throw new BadRequestError("Tranches non assignées au projet")
 
-    const maxTranchePrevision = projet.previsions.length === 0 ? 0 : Math.max(...projet.previsions.map(p => p.numeroTranche))
+    const maxTranchePrevision = projet.previsions.length
 
     if (projet.tranche.nbTranches <= maxTranchePrevision)
         throw new BadRequestError("Le numéro de tranche ne peut pas excéder le nombre total de tranches")
 
-    const maxTrancheRealisation = projet.realisations.length === 0 ? 0 : Math.max(...projet.realisations.map(r => r.numeroTranche))
+    const maxTrancheRealisation = projet.realisations.length
     if (!(maxTranchePrevision === 0 ||
         (maxTrancheRealisation === maxTranchePrevision &&
             projet.previsions.every(p => p.etat === statusPrevision.accepted) && projet.realisations.length > 0
@@ -473,7 +488,11 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
         etat: statusPrevision.brouillon,
     }
 
-    await Prevision.create(previsionBody)
+    await sequelize.transaction(async t => {
+
+        await Prevision.create(previsionBody, { transaction: t })
+    })
+
 
     new SuccessCreationResponse('Prévision créée avec succès').send(res)
 }))
@@ -502,47 +521,44 @@ router.patch('/:projetId/:numeroTranche', jwtVerifyAuth,
         if (!prevision)
             throw new NotFoundError()
 
+        const valeurPrevision = await getValeur(projetId, numeroTranche)
+
+        if (valeurPrevision === 0)
+            throw new BadRequestError(`La prevision ne contien aucun article`)
+
         const newEtat = req.body.etat;
+        await sequelize.transaction(async (t) => {
+            switch (newEtat) {
+                case statusPrevision.pending:
+                    if (!isSimpleUser(req))
+                        throw new UnauthroizedError()
 
-        switch (newEtat) {
-            case statusPrevision.pending:
-                if (!isSimpleUser(req))
-                    throw new UnauthroizedError()
+                    const valeurTranche = prevision.projet.tranche.pourcentage[prevision.numeroTranche]
+                        * prevision.projet.montant;
 
-                const valeurPrevision = await getValeur(projetId, numeroTranche)
-                const valeurTranche = prevision.projet.tranche.pourcentage[prevision.numeroTranche]
-                    * prevision.projet.montant;
+                    if (valeurPrevision > valeurTranche)
+                        throw new BadRequestError(`Le montant total de la prévision dépasse le montant de ${valeurTranche}`)
 
-                if (valeurPrevision === 0)
-                    throw new BadRequestError(`Vous n'avez inséré aucun article`)
+                    await prevision.update({ etat: newEtat }, { transaction: t })
+                    break;
+                case statusPrevision.accepted:
+                    if (!isAdmin(req) || prevision.etat !== statusPrevision.pending)
+                        throw new UnauthroizedError();
 
-                if (valeurPrevision > valeurTranche)
-                    throw new BadRequestError(`Le montant total de la prévision dépasse le montant de ${valeurTranche}`)
+                    await prevision.update({ etat: newEtat, seenByUser: false }, { transaction: t })
 
-                prevision.etat = newEtat
+                    break;
+                case statusPrevision.refused:
+                    if (!isAdmin(req) || prevision.etat !== statusPrevision.pending)
+                        throw new UnauthroizedError();
 
-                await prevision.save()
-                break;
-            case statusPrevision.accepted:
-                if (!isAdmin(req) || prevision.etat !== statusPrevision.pending)
-                    throw new UnauthroizedError();
+                    const message = req.body.message
 
-                await prevision.update({ etat: newEtat })
-
-                break;
-            case statusPrevision.refused:
-                if (!isAdmin(req) || prevision.etat !== statusPrevision.pending)
-                    throw new UnauthroizedError();
-
-                const message = req.body.message
-
-                if (!message)
-                    throw new BadRequestError('Vous devez spécifier le motif de refus')
-
-                await sequelize.transaction(async (t) => {
+                    if (!message)
+                        throw new BadRequestError('Vous devez spécifier le motif de refus')
 
                     await prevision.update(
-                        { etat: newEtat },
+                        { etat: newEtat, seenByUser: false },
                         { transaction: t })
 
                     await MotifPrevision.create({
@@ -550,19 +566,60 @@ router.patch('/:projetId/:numeroTranche', jwtVerifyAuth,
                         projetId, numeroTranche,
                         dateMotif: Date.now(),
                     }, { transaction: t })
-                })
 
 
-                // if (prevision.etat === statusPrevision.refused && req.body.message){
-                // TODO WITH TRANSACTION
-                // }
+                    // if (prevision.etat === statusPrevision.refused && req.body.message){
+                    // TODO WITH TRANSACTION
+                    // }
 
-                break;
-            default:
-                throw new InternalError()
-        }
+                    break;
+                default:
+                    throw new InternalError()
+            }
+        })
 
         new SuccessResponse('Succès').send(res)
+    }))
+
+router.patch('/seenByUser/:projetId/:numeroTranche', jwtVerifyAuth,
+    asyncHandler(async (req, res, next) => {
+
+        const projetId = req.params.projetId
+        const numeroTranche = req.params.numeroTranche
+
+        if (!isSimpleUser(req))
+            throw new UnauthroizedError()
+
+        const projet = await Projet.findByPk(projetId, {
+            attributes: ['idProjet'],
+            include: [{
+                model: Prevision, attributes: ['seenByUser'], as: 'previsions', where: {
+                    numeroTranche: numeroTranche
+                }
+            }, {model: Demande, attributes: ['userId'], as: 'demande'}]
+        })
+
+        if (!projet)
+            throw new NotFoundError()
+
+        if (projet.demande.userId !== req.user.idUser)
+            throw new NotFoundError()
+
+        if (projet.previsions.length === 0)
+            throw new NotFoundError()
+
+        if (!projet.previsions[0].seenByUser) {
+            await sequelize.transaction(async t => {
+
+                await Prevision.update({ seenByUser: true }, {where : {
+                    projetId, numeroTranche
+                }, transaction: t,
+                individualHooks: true, })
+            })
+        }
+
+        return new SuccessResponse('Succes').send(res)
+
     }))
 
 module.exports = router

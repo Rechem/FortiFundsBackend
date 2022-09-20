@@ -9,7 +9,7 @@ module.exports = (sequelize, DataTypes) => {
         static associate(model) {
             this.belongsTo(model.Role, { foreignKey: "roleId", as: 'role' })
             this.hasMany(model.Demande, { foreignKey: "userId", as: 'demandes' })
-            this.hasMany(model.Membre, { foreignKey: "createdBy", as: 'membres' })
+            // this.hasMany(model.Membre, { foreignKey: "createdBy", as: 'membres' })
             this.hasMany(model.Commission, { foreignKey: "createdBy", as: "commissions" })
             this.hasMany(model.Complement, { foreignKey: "createdBy", as: 'complements' })
             this.hasMany(model.Ticket, {foreignKey: 'userId', as: 'tickets'})
@@ -22,7 +22,7 @@ module.exports = (sequelize, DataTypes) => {
             // Role.findByPk(user.roleId)
             const role = await User.getRole(user)
             user.role = role
-            return _.pick(user, ["idUser", "completedSignUp", "role"])
+            return _.pick(user, ["idUser", "completedSignUp", "role", "confirmed", "banned"])
         }
 
         static async getRole(user) {
@@ -139,6 +139,16 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false,
             defaultValue: false,
         },
+        confirmed : {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false,
+        },
+        banned : {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false,
+        },
         avatar: {
             type: DataTypes.STRING,
             allowNull: true,
@@ -162,17 +172,18 @@ module.exports = (sequelize, DataTypes) => {
     const createUserMiddleware = async (user, _) => {
         user.email = user.email.toLowerCase()
         user.password = await bcryptjs.hash(user.password, 10)
-        user.changedPassword = new Date.now()
+        user.changedPassword = Date.now()
     }
 
     const encryptPasswordIfChanged = async (user, _) => {
         if (user.changed('password')) {
             user.password = await bcryptjs.hash(user.password, 10)
-            user.changedPassword = new Date.now()
+            user.changedPassword = Date.now()
         }
     }
 
-    const beforeUpdateMiddleware = async (user, _) => {
+    const beforeUpdateMiddleware = async (user, options) => {
+        options.validate = false;
         await encryptPasswordIfChanged(user, _);
         if (user.nom &&
             user.prenom &&

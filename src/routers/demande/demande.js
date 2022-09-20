@@ -7,7 +7,7 @@ const asyncHandler = require('../../helpers/async-handler')
 const { SuccessCreationResponse, SuccessResponse } = require('../../core/api-response')
 const { BadRequestError, UnauthroizedError, NotFoundError } = require('../../core/api-error')
 const { ValidationError } = require('sequelize')
-const { roles, statusDemande, flattenObject, sanitizeFileName, getPagination, getPagingData } = require('../../core/utils')
+const { roles, statusDemande, flattenObject, sanitizeFileName, getPagination, getPagingData, statusCommission } = require('../../core/utils')
 const { isAdmin, isModo, isSimpleUser, fieldNames, upload } = require('../../core/utils')
 const { Op } = require('sequelize')
 const _ = require('lodash')
@@ -124,75 +124,6 @@ router.post('/', jwtVerifyAuth,
 
     }))
 
-// get all demandes with server side pagination
-// router.get('/', jwtVerifyAuth,
-//     asyncHandler(async (req, res, next) => {
-//         // let searchInput = req.query.q || ''
-
-//         const { search, orderBy, sortBy, page, size, } = req.query
-
-//         // let condition = null
-//         let condition = null
-
-//         if (isSimpleUser(req)) {
-//             condition = { userId: req.user.idUser }
-//         }
-
-//         if (search) {
-//             condition = {
-//                 ...condition,
-//                 [Op.or]: [
-//                     sequelize.where(
-//                         sequelize.fn('LOWER', sequelize.col('denominationCommerciale')),
-//                         { [Op.like]: `%${search}%` }),
-//                     sequelize.where(
-//                         sequelize.fn('LOWER', sequelize.col('nbEmploye')),
-//                         { [Op.like]: `%${search}%` }),
-//                     sequelize.where(
-//                         sequelize.fn('LOWER', sequelize.col('nif')),
-//                         { [Op.like]: `%${search}%` }),
-//                     sequelize.where(
-//                         sequelize.fn('LOWER', sequelize.col('nbLabel')),
-//                         { [Op.like]: `%${search}%` }),
-//                     sequelize.where(
-//                         sequelize.fn('LOWER', sequelize.col('formeJuridique')),
-//                         { [Op.like]: `%${search}%` }),
-//                 ]
-//             }
-//         }
-
-//         const { limit, offset } = getPagination(page, size)
-
-//         const orderFilter = orderBy ? sortBy ? [orderBy, sortBy] : [orderBy, 'DESC'] : ['createdAt', 'DESC']
-
-//         const demandes = await Demande.findAndCountAll({
-//             where: condition,
-//             limit,
-//             offset,
-//             order: [orderFilter],
-//         });
-
-//         new SuccessResponse('Liste des Demandes',
-//             getPagingData(demandes, page, limit)
-//         ).send(res)
-//     }))
-
-//download business plan
-router.post('/:idDemande/business-plan/', jwtVerifyAuth,
-    asyncHandler(async (req, res, next) => {
-
-        const idDemande = req.params.idDemande
-
-        const demande = await Demande.findByPk(idDemande)
-
-        if (!demande)
-            throw new NotFoundError("Demande introuvable")
-
-        res.download(demande.businessPlan, demande.businessPlan.match(new RegExp(/[a-zA-Z-/_.0-9]+$/g)));
-    }))
-
-//get demande by id
-
 router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
 
     if (!isAdmin(req))
@@ -266,6 +197,11 @@ router.patch('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
             })
             break;
         case statusDemande.pending:
+            if (demande.commissionId !== null) {
+                const commission = await Commission.findByPk(demande.commissionId, { attributes: ['etat'] })
+                if (commission.etat === statusCommission.terminee)
+                    throw new UnauthroizedError('Cette demande appartient à une commission déjà achevée')
+            }
             await demande.update({
                 etat: nouveauEtat,
                 commissionId: null,

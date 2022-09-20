@@ -23,7 +23,6 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.INTEGER,
             allowNull: false,
             get() {
-                // console.log(this.getDataValue('nbEmploye'));
                 if (this.getDataValue('nbEmploye'))
                     return this.getDataValue('nbEmploye').toString()
                 return ''

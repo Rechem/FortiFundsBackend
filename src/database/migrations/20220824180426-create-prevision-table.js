@@ -23,6 +23,11 @@ module.exports = {
         allowNull: false,
         defaultValue: statusPrevision.brouillon,
       },
+      seenByUser:{
+        type: Sequelize.BOOLEAN,
+        allowNull: true,
+        defaultValue : false
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE

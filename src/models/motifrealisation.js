@@ -5,14 +5,10 @@ const {
 module.exports = (sequelize, DataTypes) => {
   class MotifRealisation extends Model {
     static associate(models) {
-      
+
     }
   }
   MotifRealisation.init({
-    contenuMotif: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
     dateMotif: {
       type: DataTypes.DATE,
       primaryKey: true,
@@ -36,10 +32,22 @@ module.exports = (sequelize, DataTypes) => {
     type: {
       type: DataTypes.STRING,
       primaryKey: true,
+      references: {
+        model: 'articlesrealisation',
+        key: 'type',
+      },
     },
     idArticle: {
       type: DataTypes.INTEGER,
       primaryKey: true,
+      references: {
+        model: 'articlesrealisation',
+        key: 'idArticle',
+      }
+    },
+    contenuMotif: {
+      type: DataTypes.STRING,
+      allowNull: false
     },
     seenByUser: {
       type: DataTypes.BOOLEAN,

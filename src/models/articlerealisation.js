@@ -89,32 +89,141 @@ module.exports = (sequelize, DataTypes) => {
     modelName: 'ArticleRealisation',
   });
 
-  const updateRealisation = async (article, _) => {
-
+  const updateRealisation = async (article, options) => {
     const Realisation = sequelize.models.Realisation
 
-    const result = await ArticleRealisation.findAndCountAll(
+
+    let waitingCount = await ArticleRealisation.count(
       {
         where: {
           projetId: article.projetId, numeroTranche: article.numeroTranche,
-          etat: { [Op.not]: statusArticleRealisation.accepted }
+          etat: statusArticleRealisation.waiting
         },
-      })
+      }, { transaction: options.transaction })
+    waitingCount += article.dataValues.etat === statusArticleRealisation.waiting ? 1 : 0
+    waitingCount -= article._previousDataValues.etat === statusArticleRealisation.waiting ? 1 : 0
 
-    if (result.count === 0) {
-      const realisation = await Realisation.findOne({
-        where: { projetId: article.projetId, numeroTranche: article.numeroTranche, }
-      })
+    let pendingCount = await ArticleRealisation.count(
+      {
+        where: {
+          projetId: article.projetId, numeroTranche: article.numeroTranche,
+          etat: statusArticleRealisation.pending
+        },
+      }, { transaction: options.transaction })
+    pendingCount += article.dataValues.etat === statusArticleRealisation.pending ? 1 : 0
+    pendingCount -= article._previousDataValues.etat === statusArticleRealisation.pending ? 1 : 0
 
-      if (!realisation)
-        throw new NotFoundError('Cette realisation n\'existe')
+    let evaluated = await ArticleRealisation.count(
+      {
+        where: {
+          projetId: article.projetId, numeroTranche: article.numeroTranche,
+          etat: {
+            [Op.or]: [statusArticleRealisation.accepted, statusArticleRealisation.refused]
+          }
+        },
+      }, { transaction: options.transaction })
+    evaluated += [statusArticleRealisation.accepted, statusArticleRealisation.refused]
+      .includes(article.dataValues.etat) ? 1 : 0
+    evaluated -= [statusArticleRealisation.accepted, statusArticleRealisation.refused]
+      .includes(article._previousDataValues.etat) ? 1 : 0
 
-      realisation.etat = statusRealisation.terminee
 
-      await realisation.save()
+    let nouvelEtat;
+
+    if (waitingCount > 0) {
+      if (pendingCount > 0)
+        nouvelEtat = statusRealisation.pendingWaiting
+      else {
+          nouvelEtat = statusRealisation.waiting
+      }
+    } else {
+      let refusedCount = await ArticleRealisation.count(
+        {
+          where: {
+            projetId: article.projetId, numeroTranche: article.numeroTranche,
+            etat: statusArticleRealisation.refused,
+          },
+        }, { transaction: options.transaction })
+      refusedCount += article.dataValues.etat === statusArticleRealisation.refused ? 1 : 0
+      refusedCount -= article._previousDataValues.etat === statusArticleRealisation.refused ? 1 : 0
+
+      if (pendingCount > 0) {
+        if (refusedCount > 0)
+          nouvelEtat = statusRealisation.pendingWaiting
+        else
+          nouvelEtat = statusRealisation.pending
+      }
+      else {
+        if (evaluated > 0)
+          if (refusedCount === 0)
+            nouvelEtat = statusRealisation.terminee
+          else
+            nouvelEtat = statusRealisation.waiting
+      }
+    }
+
+
+    // if (pendingCount > 0) {
+    //   if (waitingCount > 0) {
+    //     nouvelEtat = statusRealisation.pendingWaiting
+    //   } else {
+    //     nouvelEtat = statusRealisation.pending
+    //   }
+    // } else {
+    //   let evaluated = await ArticleRealisation.count(
+    //     {
+    //       where: {
+    //         projetId: article.projetId, numeroTranche: article.numeroTranche,
+    //         etat: {
+    //           [Op.or]: [statusArticleRealisation.accepted, statusArticleRealisation.refused]
+    //         }
+    //       },
+    //     }, { transaction: options.transaction })
+    //   evaluated += [statusArticleRealisation.accepted, statusArticleRealisation.refused].includes(article.etat) ? 1 : 0
+
+    //   if (waitingCount > 0) {
+    //     if (evaluated > 0) {
+    //       nouvelEtat = statusRealisation.evaluatedWaiting
+    //     } else {
+    //       nouvelEtat = statusRealisation.waiting
+    //     }
+    //   } else {
+    //     let refusedCount = await ArticleRealisation.count(
+    //       {
+    //         where: {
+    //           projetId: article.projetId, numeroTranche: article.numeroTranche,
+    //           etat: statusArticleRealisation.refused,
+    //         },
+    //       }, { transaction: options.transaction })
+    //     refusedCount += article.etat === statusArticleRealisation.refused ? 1 : 0
+
+    //     if (evaluated > 0) {
+    //       if (refusedCount > 0)
+    //         nouvelEtat = statusRealisation.evaluated
+    //       else
+    //         nouvelEtat = statusRealisation.terminee
+    //     }
+    //   }
+    // }
+
+    const realisation = await Realisation.findOne({
+      where: { projetId: article.projetId, numeroTranche: article.numeroTranche, }
+    }, { transaction: options.transaction })
+
+    if (!realisation)
+      throw new NotFoundError('Cette realisation n\'existe')
+
+    let seenByUser = true;
+    if ([statusRealisation.terminee, statusRealisation.evaluatedWaiting].includes(nouvelEtat))
+      seenByUser = false
+
+    if (realisation.etat !== nouvelEtat) {
+      await realisation.update({ etat: nouvelEtat, seenByUser },
+        { transaction: options.transaction })
     }
   }
 
+  // no need for a afterBulkcreate middlware as its created with etat = waiting
   ArticleRealisation.afterUpdate(updateRealisation)
 
   return ArticleRealisation;

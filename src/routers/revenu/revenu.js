@@ -5,15 +5,52 @@ const asyncHandler = require('../../helpers/async-handler')
 const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth')
 const { isAdmin, isModo, isSimpleUser, upload, fieldNames,
     sanitizeFileName, statusArticleRevenu, deleteFile } = require('../../core/utils')
-const { Revenu, Projet, Demande, MotifRevenu} = require('../../models')
+const { ArticleRevenu, Projet, Demande, MotifRevenu, Revenu } = require('../../models')
 const db = require('../../models');
 const { articleRevenuSchema, articleRevenuPatchSchema } = require('./schema')
 const sequelize = require('../../database/connection')
 const _ = require('lodash')
 const revenu = require('../../models/revenu')
-const { articleRealisationSchema } = require('../realisations/schema')
 
 const router = new express.Router()
+
+router.patch('/seenByUser/:projetId/', jwtVerifyAuth,
+    asyncHandler(async (req, res, next) => {
+
+        const projetId = req.params.projetId
+
+        if (!isSimpleUser(req))
+            throw new UnauthroizedError()
+
+        const projet = await Projet.findByPk(projetId, {
+            attributes: ['idProjet'],
+            include: [{ model: Revenu, attributes: ['seenByUser'], as: 'revenuProjet' },
+            { model: Demande, attributes: ['userId'], as: 'demande' }]
+        })
+
+        if (!projet)
+            throw new NotFoundError()
+
+        if (projet.demande.userId !== req.user.idUser)
+            throw new NotFoundError()
+
+        if (!projet.revenuProjet)
+            throw new NotFoundError()
+
+        if (!projet.revenuProjet.seenByUser) {
+            await sequelize.transaction(async t => {
+
+                await Revenu.update({ seenByUser: true }, {where: {
+                    projetId,
+                }, transaction: t,
+                individualHooks: true, })
+            })
+        }
+
+        return new SuccessResponse('Succes').send(res)
+
+    }))
+
 
 router.post('/', jwtVerifyAuth,
     asyncHandler(async (req, res, next) => {
@@ -64,13 +101,15 @@ router.post('/', jwtVerifyAuth,
             } else
                 throw new BadRequestError('Facture non fournie')
         }
+        await sequelize.transaction(async t => {
+            await ArticleRevenu.create(body, { transaction: t })
+        })
 
-        await Revenu.create(body)
 
         new SuccessCreationResponse('Revenu ajouté avec succès').send(res)
     }))
 
-router.patch('/:projetId/:idRevenu', jwtVerifyAuth,
+router.patch('/:projetId/:idArticleRevenu', jwtVerifyAuth,
     asyncHandler(async (req, res, next) => {
         if (!isAdmin(req) && !isSimpleUser(req))
             throw new UnauthroizedError()
@@ -80,7 +119,7 @@ router.patch('/:projetId/:idRevenu', jwtVerifyAuth,
     asyncHandler(async (req, res, next) => {
 
         const projetId = req.params.projetId
-        const idRevenu = req.params.idRevenu
+        const idArticleRevenu = req.params.idArticleRevenu
 
         const projet = await Projet.findByPk(projetId, {
             attributes: ['idProjet'],
@@ -97,10 +136,10 @@ router.patch('/:projetId/:idRevenu', jwtVerifyAuth,
         if (isSimpleUser(req) && projet.demande.userId !== req.user.idUser)
             throw new NotFoundError()
 
-        const articleRevenu = await Revenu.findOne({
+        const articleRevenu = await ArticleRevenu.findOne({
             where: {
                 projetId,
-                idRevenu
+                idArticleRevenu
             }
         })
 
@@ -111,98 +150,95 @@ router.patch('/:projetId/:idRevenu', jwtVerifyAuth,
             throw new BadRequestError('Etat requis')
 
         let body = {}
+        await sequelize.transaction(async (t) => {
 
-        switch (req.body.etat) {
-            case statusArticleRevenu.pending:
-                if (!isSimpleUser(req) || articleRevenu.etat != statusArticleRevenu.refused)
-                    throw new UnauthroizedError()
+            switch (req.body.etat) {
+                case statusArticleRevenu.pending:
+                    if (!isSimpleUser(req) || articleRevenu.etat != statusArticleRevenu.refused)
+                        throw new UnauthroizedError()
 
-                const { error } = articleRevenuPatchSchema.validate(req.body)
+                    const { error } = articleRevenuPatchSchema.validate(req.body)
 
-                if (error)
-                    throw new BadRequestError(error.details[0].message)
+                    if (error)
+                        throw new BadRequestError(error.details[0].message)
 
-                if (!req.body.lienOuFacture)
-                    throw new BadRequestError()
+                    if (!req.body.lienOuFacture)
+                        throw new BadRequestError()
 
-                body = {
-                    description: req.body.description,
-                    dateDebut: req.body.dateDebut,
-                    dateFin: req.body.dateFin,
-                    montant: req.body.montant,
-                    etat: statusArticleRevenu.pending
-                }
-
-                if (req.body.lienOuFacture === 'lien') {
-                    if (!req.body.lien)
-                        throw new BadRequestError('Lien non fourni')
-                    body.lien = req.body.lien
-                    if (articleRevenu.facture) {
-                        fileNameToDelete = articleRevenu.facture.replace(/^\\uploads/g, 'public')
-                        deleteFile(fileNameToDelete)
-                        body.facture = null
+                    body = {
+                        description: req.body.description,
+                        dateDebut: req.body.dateDebut,
+                        dateFin: req.body.dateFin,
+                        montant: req.body.montant,
+                        etat: statusArticleRevenu.pending
                     }
-                } else if (req.body.lienOuFacture === 'facture') {
-                    body.lien = null
-                    if (req.file) {
-                        body.facture = sanitizeFileName(req.file.path)
+
+                    if (req.body.lienOuFacture === 'lien') {
+                        if (!req.body.lien)
+                            throw new BadRequestError('Lien non fourni')
+                        body.lien = req.body.lien
                         if (articleRevenu.facture) {
                             fileNameToDelete = articleRevenu.facture.replace(/^\\uploads/g, 'public')
                             deleteFile(fileNameToDelete)
+                            body.facture = null
                         }
-                    } else {
-                        if (!articleRevenu.facture)
-                            throw new BadRequestError('Facture non fournie')
+                    } else if (req.body.lienOuFacture === 'facture') {
+                        body.lien = null
+                        if (req.file) {
+                            body.facture = sanitizeFileName(req.file.path)
+                            if (articleRevenu.facture) {
+                                fileNameToDelete = articleRevenu.facture.replace(/^\\uploads/g, 'public')
+                                deleteFile(fileNameToDelete)
+                            }
+                        } else {
+                            if (!articleRevenu.facture)
+                                throw new BadRequestError('Facture non fournie')
+                        }
                     }
-                }
 
-                await articleRevenu.update(body)
-                break;
-            case statusArticleRevenu.accepted:
-                if (!isAdmin(req) || (articleRevenu.etat != statusArticleRevenu.pending
-                    && articleRevenu.etat != statusArticleRevenu.refused))
-                    throw new UnauthroizedError()
+                    await articleRevenu.update(body, { transaction: t })
+                    break;
+                case statusArticleRevenu.accepted:
+                    if (!isAdmin(req) || (articleRevenu.etat != statusArticleRevenu.pending
+                        && articleRevenu.etat != statusArticleRevenu.refused))
+                        throw new UnauthroizedError()
 
-                body = {
-                    etat: statusArticleRevenu.accepted
-                }
-                await articleRevenu.update(body)
+                    body = {
+                        etat: statusArticleRevenu.accepted
+                    }
+                    await articleRevenu.update(body, { transaction: t })
 
-                break;
-            case statusArticleRevenu.refused:
-                if (!isAdmin(req) || articleRevenu.etat != statusArticleRevenu.pending ||
-                    !req.body.message)
-                    throw new UnauthroizedError()
+                    break;
+                case statusArticleRevenu.refused:
+                    if (!isAdmin(req) || articleRevenu.etat != statusArticleRevenu.pending ||
+                        !req.body.message)
+                        throw new UnauthroizedError()
 
-                body = {
-                    etat: statusArticleRevenu.refused
-                }
+                    body = {
+                        etat: statusArticleRevenu.refused
+                    }
 
-                const message = req.body.message
+                    const message = req.body.message
 
-                if (!message)
-                    throw new BadRequestError('Vous devez spécifier le motif de refus')
+                    if (!message)
+                        throw new BadRequestError('Vous devez spécifier le motif de refus')
 
-                await sequelize.transaction(async (t) => {
-
-                    await articleRevenu.update(body)
+                    await articleRevenu.update(body, { transaction: t })
 
                     await MotifRevenu.create({
                         contenuMotif: message,
                         projetId,
-                        idRevenu,
+                        idArticleRevenu,
                         dateMotif: Date.now(),
                     }, { transaction: t })
-                })
 
-                
+                    //ADD MESSAGE IN TRANSACATION
 
-                //ADD MESSAGE IN TRANSACATION
-
-                break;
-            default:
-                break;
-        }
+                    break;
+                default:
+                    break;
+            }
+        })
 
         new SuccessCreationResponse('Succès').send(res)
     }))
@@ -218,6 +254,7 @@ router.get('/:projetId', jwtVerifyAuth,
             attributes: ['idProjet'],
             include: [
                 {
+                    model : Revenu, as : 'revenuProjet',
                     model: Demande, attributes: ["userId", "denominationCommerciale"], as: "demande"
                 }
             ]
@@ -229,19 +266,13 @@ router.get('/:projetId', jwtVerifyAuth,
         if (!isAdmin(req) && (!isSimpleUser(req) || projet.demande.userId !== req.user.idUser))
             throw new NotFoundError()
 
-        const revenus = await Revenu.findAll({
+        const revenus = await ArticleRevenu.findAll({
             where: {
                 projetId,
             },
-            include: [{
-                model: Projet, attributes: ['idProjet'], as: 'projet',
-                include: [
-                    { model: Demande, attributes: ['denominationCommerciale'], as: 'demande' },
-                ]
-            }]
         })
 
-        const valeur = await Revenu.findOne({
+        const valeur = await ArticleRevenu.findOne({
             where: {
                 projetId,
             },
@@ -249,20 +280,23 @@ router.get('/:projetId', jwtVerifyAuth,
         })
 
         return new SuccessResponse('Liste des revenus', {
-            revenus: { revenus, valeur: valeur.toJSON().total || 0, },
+            revenu: { 
+                revenu : projet.toJSON().revenuProjet,
+                revenus,
+                valeur: valeur.toJSON().total || 0, },
             projet: _.pick(projet.toJSON(), ['idProjet', 'demande.denominationCommerciale']
             )
         }).send(res)
     }))
 
-router.delete('/:projetId/:idRevenu',
+router.delete('/:projetId/:idArticleRevenu',
     jwtVerifyAuth,
     asyncHandler(async (req, res, next) => {
         if (!isSimpleUser(req))
             throw new UnauthroizedError()
 
         const projetId = req.params.projetId
-        const idRevenu = req.params.idRevenu
+        const idArticleRevenu = req.params.idArticleRevenu
 
         const projet = await Projet.findByPk(projetId, {
             attributes: ['idProjet'],
@@ -277,25 +311,30 @@ router.delete('/:projetId/:idRevenu',
         if (projet.demande.userId !== req.user.idUser)
             throw new NotFoundError()
 
-        const result = await Revenu.findOne({
+        const result = await ArticleRevenu.findOne({
             where: {
-                projetId, idRevenu
+                projetId, idArticleRevenu
             }
         })
 
         if (!result)
             throw new NotFoundError('Ce revenu n\'existe pas')
 
-        if(result.etat === statusArticleRevenu.accepted)
+        if (result.etat === statusArticleRevenu.accepted)
             throw new UnauthroizedError()
+        await sequelize.transaction(async t => {
 
-        await Revenu.destroy({
-            where: {
-                projetId, idRevenu
-            }
+            await ArticleRevenu.destroy({
+                where: {
+                    projetId, idArticleRevenu
+                }
+            },
+                { transaction: t }
+            )
         })
 
         new SuccessResponse(`Revenu supprimé(e) avec succès`).send(res)
     }))
+
 
 module.exports = router

@@ -101,29 +101,29 @@ router.patch('/realisation/:projetId/:numeroTranche/:type/:idArticle', jwtVerify
     }))
 
     
-router.get('/revenu/:projetId/:idRevenu', jwtVerifyAuth,
+router.get('/revenu/:projetId/:idArticleRevenu', jwtVerifyAuth,
 asyncHandler(async (req, res, next) => {
     const projetId = req.params.projetId
-    const idRevenu = req.params.idRevenu
+    const idArticleRevenu = req.params.idArticleRevenu
 
     const motifsRevenu = await MotifRevenu.findAll({
-        where: { projetId, idRevenu }
+        where: { projetId, idArticleRevenu }
     })
 
     new SuccessResponse('Motifs', { motifsRevenu }).send(res)
 }))
 
-router.patch('/revenu/:projetId/:idRevenu', jwtVerifyAuth,
+router.patch('/revenu/:projetId/:idArticleRevenu', jwtVerifyAuth,
 asyncHandler(async (req, res, next) => {
     const projetId = req.params.projetId
-    const idRevenu = req.params.idRevenu
+    const idArticleRevenu = req.params.idArticleRevenu
 
     if (isSimpleUser(req))
         await MotifRevenu.update({
             seenByUser: true,
         },
             {
-                where: { projetId, idRevenu, seenByUser: false, }
+                where: { projetId, idArticleRevenu, seenByUser: false, }
             }
         )
 

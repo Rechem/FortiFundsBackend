@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const _ = require('lodash');
 const { promisify } = require('util');
 const {User, Role} = require('../models')
-const { InternalError, BadTokenError } = require('../core/api-error')
+const { InternalError, BadTokenError, UnauthroizedError } = require('../core/api-error')
 
 //this one calls the one below it
 
@@ -30,7 +30,6 @@ createTokens = (payload, refreshSecret) => {
 };
 
 refreshToken = async (req) => {
-    console.log("\nrefreshing...\n");
     const decoded = jwt.decode(req.cookies.__rt);
 
     if (!decoded.idUser) {
@@ -57,6 +56,9 @@ refreshToken = async (req) => {
     } catch (err) {
         throw new BadTokenError();
     }
+
+    if (user.banned)
+            throw new UnauthroizedError('Compte bannis')
 
     return createTokens(
         await User.authenticationResponse(user),

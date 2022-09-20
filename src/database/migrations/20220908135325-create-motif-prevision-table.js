@@ -10,9 +10,13 @@ module.exports = {
         type: Sequelize.DATE,
         primaryKey: true,
       },
-      numeroTranche: {
+      numeroTranche : {
         type: Sequelize.INTEGER,
         primaryKey: true,
+        references: {
+          model: 'previsions',
+          key: 'numeroTranche',
+        }
       },
       projetId: {
         type: Sequelize.INTEGER,

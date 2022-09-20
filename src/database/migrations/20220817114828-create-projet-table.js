@@ -33,6 +33,16 @@ module.exports = {
           key: 'idDemande',
         }
       },
+      urgentUser :{
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue : true
+      },
+      urgentAdmin :{
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue : true
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE,

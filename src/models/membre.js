@@ -5,7 +5,7 @@ module.exports = (sequelize, DataTypes) => {
 
     class Membre extends Model {
         static associate(model) {
-            this.belongsTo(model.User, { foreignKey: "createdBy", })
+            // this.belongsTo(model.User, { foreignKey: "createdBy", })
             this.hasMany(model.Commission, { foreignKey: "presidentId", as: "commissionsPresidees" })
             this.belongsToMany(model.Commission, { through: model.MembreCommission, foreignKey: "idMembre", as: "commissions" })
         }

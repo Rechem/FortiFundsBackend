@@ -1,5 +1,6 @@
 'use strict';
 const { DataTypes } = require('sequelize')
+const {statusDemande} = require('../../core/utils')
 
 module.exports = {
   async up(queryInterface, Sequelize) {
@@ -46,7 +47,7 @@ module.exports = {
       etat: {
         type: DataTypes.STRING,
         allowNull: false,
-        defaultValue: 'En attente',
+        defaultValue: statusDemande.pending,
       },
       seenByUser: {
         type: DataTypes.BOOLEAN,

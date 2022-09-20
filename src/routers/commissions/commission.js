@@ -4,7 +4,7 @@ const { SuccessCreationResponse, SuccessResponse } = require('../../core/api-res
 const asyncHandler = require('../../helpers/async-handler')
 const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth')
 // const User = require('../../models/user')
-const { Commission, MembreCommission, Membre, Demande, Projet } = require('../../models')
+const { Commission, MembreCommission, Membre, Demande, Projet, MotifDemande } = require('../../models')
 const { roles, flattenObject, statusDemande, statusCommission, getPagination, getPagingData } = require('../../core/utils')
 const { ValidationError, Op } = require('sequelize')
 const { commissionSchema, acceptCommissionSchema } = require('./schema')
@@ -76,22 +76,22 @@ router.get('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     if (!isAdmin(req) && !isModo(req))
         throw new UnauthroizedError()
 
-        const { limit, offset } = getPagination(req.query.page, req.query.size)
+    const { limit, offset } = getPagination(req.query.page, req.query.size)
 
-        const reqArgs = {
-            search: req.query.search || null,
-            limit,
-            offset,
-            orderBy: req.query.orderBy || null,
-            sortBy: req.query.sortBy || null,
-            etat: req.query.etat || null,
-        }
-
-        const response = await findCommissionsAndCountAll(reqArgs)
-
-        return new SuccessResponse('Liste des Commissions',
-        getPagingData(response, req.query.page)).send(res)
+    const reqArgs = {
+        search: req.query.search || null,
+        limit,
+        offset,
+        orderBy: req.query.orderBy || null,
+        sortBy: req.query.sortBy || null,
+        etat: req.query.etat || null,
     }
+
+    const response = await findCommissionsAndCountAll(reqArgs)
+
+    return new SuccessResponse('Liste des Commissions',
+        getPagingData(response, req.query.page)).send(res)
+}
 ))
 
 //update commission
@@ -176,15 +176,25 @@ router.patch('/accept', jwtVerifyAuth,
             //because formdata thats why
             const demandes = JSON.parse(req.body.demandes)
 
-            if (!demandes.every(d => d.etat === statusDemande.accepted || d.etat === statusDemande.refused)) {
+            const commission = await Commission.findByPk(req.body.idCommission, {
+                include: [{ model: Demande, attributes: ['idDemande'], as: 'demandes' }]
+            })
+
+            if (demandes.length !== commission.demandes.length)
+                throw new BadRequestError('Il existe des demandes manquantes ou en surplus')
+
+            if (!demandes.every(d => {
+                return ((d.etat === statusDemande.accepted
+                || d.etat === statusDemande.refused)
+                && commission.demandes.find(element => element.idDemande == d.idDemande))
+            })) {
                 throw new BadRequestError()
             }
 
-            let nomProjets = []
+            let demandesAccepted = []
 
             await sequelize.transaction(async (t) => {
 
-                const commission = await Commission.findByPk(req.body.idCommission)
                 await commission.update({
                     etat: statusCommission.terminee,
                     rapportCommission: sanitizeFileName(req.file.path)
@@ -193,12 +203,24 @@ router.patch('/accept', jwtVerifyAuth,
                 for await (const demande of demandes) {
                     const result = await Demande.findByPk(demande.idDemande)
                     await result.update({ etat: demande.etat }, { transaction: t })
-                    nomProjets.push(result.denominationCommerciale)
+                    if (demande.etat === statusDemande.refused)
+                        await MotifDemande.create({
+                            contenuMotif:
+                                `Votre demande a été refusée après évaluation durant la commission du ${commission.dateCommission}.`,
+                            demandeId: demande.idDemande,
+                            dateMotif: Date.now(),
+                        }, { transaction: t })
+                    else
+                        demandesAccepted.push({
+                            denominationCommerciale: result.denominationCommerciale,
+                            idDemande: result.idDemande
+                        })
                 }
-                await Projet.bulkCreate(demandes.map((d, _) => ({ demandeId: d.idDemande })), { transaction: t })
+                await Projet.bulkCreate(demandesAccepted.map((d, _) => ({ demandeId: d.idDemande })), { transaction: t,
+                    individualHooks: true, })
             })
 
-            new SuccessCreationResponse('Liste des projets créés', { projets: nomProjets }).send(res)
+            new SuccessCreationResponse('Liste des projets créés', { projets: demandesAccepted }).send(res)
 
         } catch (e) {
             if (e instanceof ValidationError) {
@@ -231,7 +253,7 @@ router.get('/:idCommission', jwtVerifyAuth,
         })
 
         if (!commission)
-            throw new NotFoundError("Demande introuvable")
+            throw new NotFoundError("Commission introuvable")
 
         new SuccessResponse('Commission', { commission }).send(res)
     }))

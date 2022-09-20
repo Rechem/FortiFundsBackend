@@ -42,27 +42,47 @@ router.post('/', jwtVerifyAuth,
 router.get('/', jwtVerifyAuth,
     asyncHandler(async (req, res, next) => {
 
-        let searchInput = req.query.searchInput || ''
+        let idUser = null
+
+        if (isSimpleUser(req)) {
+            idUser = req.user.idUser
+        } else {
+            if (req.query.idUser) {
+                idUser = req.query.idUser
+            }
+        }
 
         const { search, orderBy, sortBy, page, size, } = req.query
 
         const { limit, offset } = getPagination(page, size)
 
-        let rows;
-        let count;
-
-        if (isSimpleUser(req)) {
-            rows = await sequelize.query('CALL search_tickets_by_id (:search, :IdUserParam)',
-                { replacements: { search: searchInput, IdUserParam: req.user.idUser } })
-            count = await Ticket.count()
-        } else {
-            rows = await sequelize.query('CALL search_tickets (:search)',
-                { replacements: { search: searchInput } })
-            count = await Ticket.count()
+        const reqArgs = {
+            idUser,
+            search: req.query.search || null,
+            limit,
+            offset,
+            orderBy: req.query.orderBy || null,
+            sortBy: req.query.sortBy || null,
+            etat: req.query.etat || null,
         }
 
-        return new SuccessResponse('Ticket',
-            getPagingData({ rows, count }, page, limit)
+
+        let rows, count;
+
+        idUser = req.user.idUser
+        rows = await sequelize.query('CALL search_tickets (:idUser, :search, :limit, :offset, :sortBy, :orderBy)',
+            {
+                replacements: {
+                    idUser: reqArgs.idUser, search: reqArgs.search, limit: reqArgs.limit,
+                    offset: reqArgs.offset, sortBy: reqArgs.sortBy, orderBy: reqArgs.orderBy
+                }
+            })
+        count = await sequelize.query('CALL search_tickets_count (:idUser, :search)',
+            { replacements: { idUser: reqArgs.idUser, search: reqArgs.search } })
+
+
+        return new SuccessResponse('Tickets',
+            getPagingData({ rows, count: count[0].count }, page)
         ).send(res)
 
     }))

@@ -4,7 +4,7 @@ const createCookie = require('../core/create-cookie')
 const { TokenExpiredError } = require('jsonwebtoken')
 const { removeTokens, refreshToken } = require('../core/generate-token')
 const asyncHandler = require('./async-handler')
-const {BadRequestError, AccessTokenError, AuthFailureError, InternalError} =  require('../core/api-error')
+const { BadRequestError, AccessTokenError, AuthFailureError, InternalError, UnauthroizedError } = require('../core/api-error')
 
 const jwtVerifyAuth = asyncHandler(async (req, res, next) => {
     const token = req.cookies.__act;
@@ -20,7 +20,7 @@ const jwtVerifyAuth = asyncHandler(async (req, res, next) => {
             where: {
                 idUser: decoded.idUser
             },
-            include : [{ model: Role, attributes: ['nomRole'], as : 'role' }]
+            include: [{ model: Role, attributes: ['nomRole'], as: 'role' }]
         })
 
         //TODO NOT TESTED
@@ -29,6 +29,12 @@ const jwtVerifyAuth = asyncHandler(async (req, res, next) => {
             removeTokens(res)
             throw new InternalError("User not found")
         }
+
+        if (user.banned)
+            throw new UnauthroizedError('Compte bannis')
+
+        if (!user.confirmed)
+            throw new UnauthroizedError('Veuillez confirmer votre adresse email')
 
         req.user = user.toJSON()
 
@@ -40,7 +46,7 @@ const jwtVerifyAuth = asyncHandler(async (req, res, next) => {
         if (passwordChangeAt > decoded.iat) {
             //more sketchiness
             removeTokens(res)
-            throw new AuthFailureError("Session expirée, Veuillez vous reconnecter." );
+            throw new AuthFailureError("Session expirée, Veuillez vous reconnecter.");
         }
 
         next();
@@ -49,28 +55,28 @@ const jwtVerifyAuth = asyncHandler(async (req, res, next) => {
             try {
                 const [accessToken, newRefreshToken] = await refreshToken(req);
 
-                    createCookie(
-                        res,
-                        accessToken,
-                        "__act",
-                        process.env.ACCESS_TOKEN_COOKIE_EXPIRES
-                    );
+                createCookie(
+                    res,
+                    accessToken,
+                    "__act",
+                    process.env.ACCESS_TOKEN_COOKIE_EXPIRES
+                );
 
-                    createCookie(
-                        res,
-                        newRefreshToken,
-                        "__rt",
-                        process.env.REFRESH_TOKEN_COOKIE_EXPIRES
-                    );
+                createCookie(
+                    res,
+                    newRefreshToken,
+                    "__rt",
+                    process.env.REFRESH_TOKEN_COOKIE_EXPIRES
+                );
 
-                    next();
+                next();
             } catch (e) {
                 removeTokens(res)
-                throw new AuthFailureError("Session expirée, Veuillez vous reconnecter." );
+                throw new AuthFailureError("Session expirée, Veuillez vous reconnecter.");
             }
         } else {
             removeTokens(res)
-            throw new AuthFailureError("Session expirée, Veuillez vous reconnecter." );
+            throw new AuthFailureError("Session expirée, Veuillez vous reconnecter.");
         }
     }
 })

@@ -15,6 +15,16 @@ const router = new express.Router()
 
 router.get('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
 
+    let idUser = null
+
+        if (isSimpleUser(req)) {
+            idUser = req.user.idUser
+        } else {
+            if (req.query.idUser) {
+                idUser = req.query.idUser
+            }
+        }
+
     const { limit, offset } = getPagination(req.query.page, req.query.size)
 
     const reqArgs = {
@@ -23,37 +33,30 @@ router.get('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
         offset,
         orderBy: req.query.orderBy || null,
         sortBy: req.query.sortBy || null,
-        etat: req.query.etat || null,
-        idUser: req.query.idUser || null,
+        idUser,
     }
 
-    const orderFilter = reqArgs.orderBy ? reqArgs.sortBy ?
-        [reqArgs.sortBy, reqArgs.orderBy] : [reqArgs.sortBy, 'DESC'] : ['createdAt', 'DESC']
+    // const orderFilter = reqArgs.orderBy ? reqArgs.sortBy ?
+    //     [reqArgs.sortBy, reqArgs.orderBy] : [reqArgs.sortBy, 'DESC'] : ['createdAt', 'DESC']
 
-    const projets = await Projet.findAll({
+    const projetsIds = await Projet.findAll({
         attributes: ['idProjet', 'montant',
-            [sequelize.literal('(SELECT COALESCE(sum(revenus.montant),0) FROM revenus WHERE revenus.projetId = Projet.idProjet)'), "totalRevenu"]],
+            [sequelize.literal('(SELECT COALESCE(sum(articlesrevenu.montant),0) FROM articlesrevenu WHERE articlesrevenu.projetId = Projet.idProjet)'), "totalRevenu"]],
         include: [
-            { model: Prevision, attributes: ['numeroTranche', 'etat'], as: "previsions" },
-            { model: Realisation, attributes: ['numeroTranche', 'etat'], as: "realisations" },
             {
-                model: Demande, attributes: ['denominationCommerciale', 'avatar'], as: "demande",
+                model: Demande, attributes: ['denominationCommerciale'], as: "demande",
                 include: [
                     {
-                        model: User, attributes: ['idUser', 'nom', 'prenom', 'email'], as: "user",
+                        model: User, attributes: ['nom', 'prenom', 'email'], as: "user",
                     }
                 ],
             },
-            {
-                model: Tranche, attributes: ['nbTranches'], as: "tranche"
-            }
         ],
         where: reqArgs.idUser === null ? true
             : sequelize.where(sequelize.col("demande.user.idUser"), {
                 [Op.eq]: reqArgs.idUser
             }
             ),
-        group: ['idProjet'],
         having: {
             [Op.or]: [
                 sequelize.where(
@@ -89,16 +92,51 @@ router.get('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
                 )
             ],
         },
-        limit,
-        offset,
+        order: [isSimpleUser(req) ?  ['urgentUser', 'DESC'] : ['urgentAdmin', 'DESC'], 
+    ['updatedAt', 'DESC']],
+        limit: reqArgs.limit,
+        offset: reqArgs.offset,
         subQuery: false
     })
 
-    // const count = await sequelize.query(
-    //     'CALL search_projets_count (:search, :idUser)',
-    //     { replacements: { search: reqArgs.search, idUser: reqArgs.idUser } })
+    const count = await sequelize.query(
+        'CALL search_projets_count (:search, :idUser)',
+        { replacements: { search: reqArgs.search, idUser: reqArgs.idUser } })
 
-    return new SuccessResponse('Liste des projets', { projets }).send(res)
+    const idsToFetch = projetsIds.reduce((p, c) =>  p.concat(c.idProjet), [])
+
+    const projets = await Projet.findAll({
+        attributes: ['idProjet', 'montant', 'documentAccordFinancement',
+            [sequelize.literal('(SELECT COALESCE(sum(articlesrevenu.montant),0) FROM articlesrevenu WHERE articlesrevenu.projetId = Projet.idProjet)'), "totalRevenu"]],
+        include: [
+            { model: Prevision, attributes: ['numeroTranche', 'etat', 'seenByUser'], as: "previsions" },
+            { model: Realisation, attributes: ['numeroTranche', 'etat', 'seenByUser'], as: "realisations" },
+            { model: Revenu, attributes: ['etat', 'seenByUser'], as: "revenuProjet" },
+            {
+                model: Demande, attributes: ['denominationCommerciale', 'avatar'], as: "demande",
+                include: [
+                    {
+                        model: User, attributes: ['idUser', 'nom', 'prenom', 'email'], as: "user",
+                    }
+                ],
+            },
+            {
+                model: Tranche, attributes: ['nbTranches'], as: "tranche"
+            }
+        ],
+        where: {
+            idProjet: {
+                [Op.in]: idsToFetch
+            }
+        },
+        order: [isSimpleUser(req) ?  ['urgentUser', 'DESC'] : ['urgentAdmin', 'DESC'], 
+        ['updatedAt', 'DESC']],
+    })
+
+    return new SuccessResponse('Liste des projets', {
+        projets,
+        count: count[0].count
+    }).send(res)
 }))
 
 router.get('/:idProjet', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
@@ -107,8 +145,9 @@ router.get('/:idProjet', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     const projet = await Projet.findByPk(idProjet, {
         attributes: ['idProjet', 'montant', 'documentAccordFinancement'],
         include: [
-            { model: Prevision, attributes: ['numeroTranche', 'etat'], as: "previsions" },
-            { model: Realisation, attributes: ['numeroTranche', 'etat'], as: "realisations" },
+            { model: Prevision, attributes: ['numeroTranche', 'etat','seenByUser'], as: "previsions" },
+            { model: Realisation, attributes: ['numeroTranche', 'etat', 'seenByUser'], as: "realisations" },
+            { model: Revenu, attributes: ['etat', 'seenByUser'], as: "revenuProjet" },
             {
                 model: Demande,
                 attributes: {
@@ -125,9 +164,9 @@ router.get('/:idProjet', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
         ]
     })
 
-    if (projet && isAdmin(req) || isModo(req) ||
-        (isSimpleUser(req) && projet.demande.user.idUser == req.user.idUser))
-        new SuccessResponse('Projet', { projet }).send(res)
+    if (projet && (isAdmin(req) || isModo(req) ||
+        (isSimpleUser(req) && projet.demande.user.idUser == req.user.idUser)))
+        return new SuccessResponse('Projet', { projet }).send(res)
     else
         throw new NotFoundError()
 }))
@@ -158,7 +197,10 @@ router.patch('/:idProjet', jwtVerifyAuth,
         if (!Projet)
             throw new NotFoundError()
 
-        await projet.update(req.body)
+        await sequelize.transaction(async t => {
+
+            await projet.update(req.body, {transaction : t})
+        })
 
         new SuccessResponse('Projet mis a jour avec succes').send(res)
     }))
@@ -181,10 +223,13 @@ router.patch('/:idProjet/tranche', jwtVerifyAuth, asyncHandler(async (req, res, 
 
     const projet = await Projet.findByPk(idProjet)
 
-    if (!projet)
+    if (!projet || projet.trancheId)
         throw new NotFoundError()
-
-    await projet.update({ trancheId })
+        
+    await sequelize.transaction(async t => {
+        
+        await projet.update({ trancheId }, {transaction : t})
+    })
 
     new SuccessResponse('Projet mis a jour avec succes').send(res)
 }))

@@ -34,10 +34,24 @@ module.exports = (sequelize, DataTypes) => {
         }
       }
     },
+    seenByUser : {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue : false
+    },
   }, {
     sequelize,
     tableName: 'realisations',
     modelName: 'Realisation',
   });
+
+  const updateProjet = async (realisation, options) => {
+    const Projet = sequelize.models.Projet
+    options.transaction.afterCommit(async () =>await Projet.updateProjet(realisation.projetId))
+  }
+
+  Realisation.afterCreate(updateProjet)
+  Realisation.afterUpdate(updateProjet)
+
   return Realisation;
 };

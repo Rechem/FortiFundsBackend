@@ -1,5 +1,5 @@
 const express = require('express')
-const { UnauthroizedError, BadRequestError, NotFoundError } = require('../../core/api-error')
+const { UnauthroizedError, BadRequestError, NotFoundError, AlreadyExistsError } = require('../../core/api-error')
 const { SuccessCreationResponse, SuccessResponse } = require('../../core/api-response')
 const asyncHandler = require('../../helpers/async-handler')
 const { jwtVerifyAuth } = require('../../helpers/jwt-verify-auth')
@@ -19,8 +19,18 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
                 nomMembre: req.body.nomMembre,
                 prenomMembre: req.body.prenomMembre,
                 emailMembre: req.body.emailMembre,
-                createdBy: req.user.idUser
+                // createdBy: req.user.idUser
             }
+
+            const membre = await Membre.findOne({
+                where: {
+                    nomMembre: req.body.nomMembre,
+                    prenomMembre: req.body.prenomMembre
+                }
+            })
+
+            if (membre)
+                throw new AlreadyExistsError('Ce membre existe deja')
 
             await Membre.create(membreBody)
 
@@ -44,20 +54,11 @@ router.get('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
 
         let searchInput = req.query.searchInput || ''
 
-        // let membres = await Membre.findAll({ attributes: ['idMembre', 'nomMembre', 'prenomMembre', 'emailMembre'] })
-        // if (membres.length > 0 && searchInput !== '') {
-        //     searchInput = searchInput.trim()
-        //     membres = membres.filter(membre => {
-        //         values = Object.values(membre.toJSON())
-        //         return searchInput.split(' ').every(el => values.some(e => e.toString().includes(el)))
-        //     })
-        // }
-
         const membres = await sequelize
-            .query('CALL search_membre (:search)',
+            .query('CALL search_membres (:search)',
                 { replacements: { search: searchInput } })
 
-        new SuccessResponse('Liste des Membres', {membres}).send(res)
+        new SuccessResponse('Liste des Membres', { membres }).send(res)
 
     } else {
         throw new UnauthroizedError()

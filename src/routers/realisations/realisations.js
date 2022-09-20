@@ -69,8 +69,8 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
     if (!projet.tranche)
         throw new BadRequestError("Tranches non assignées au projet")
 
-    const maxTranchePrevision = projet.previsions.length === 0 ? 0 : Math.max(...projet.previsions.map(p => p.numeroTranche))
-    const maxTrancheRealisation = projet.realisations.length === 0 ? 0 : Math.max(...projet.realisations.map(r => r.numeroTranche))
+    const maxTranchePrevision = projet.previsions.length
+    const maxTrancheRealisation = projet.realisations.length
 
     if (!(projet.previsions.length > 0 &&
         projet.previsions.every(p => p.etat === statusPrevision.accepted)
@@ -91,7 +91,9 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
             where: { projetId, numeroTranche: realisationBody.numeroTranche }
         }, { transaction: t })
 
-        await ArticleRealisation.bulkCreate(
+        let articlesToInsert = []
+
+        articlesToInsert = articlesToInsert.concat(
             investissements.map((i) => {
                 return {
                     idArticle: i.idInvestissement,
@@ -99,38 +101,61 @@ router.post('/', jwtVerifyAuth, asyncHandler(async (req, res, next) => {
                     projetId,
                     numeroTranche: realisationBody.numeroTranche,
                 }
-            }, { transaction: t })
+            })
         )
 
-        const salaires = await Salaire.findAll({
-            where: { projetId: realisationBody.projetId, numeroTranche: realisationBody.numeroTranche }
-        }, { transaction: t })
+        // await ArticleRealisation.bulkCreate(
+        //     investissements.map((i) => {
+        //         return {
+        //             idArticle: i.idInvestissement,
+        //             type: 'Investissement',
+        //             projetId,
+        //             numeroTranche: realisationBody.numeroTranche,
+        //         }
+        //     }, { transaction: t })
+        // )
 
-        await ArticleRealisation.bulkCreate(
-            salaires.map((i) => {
+        const salaires = await Salaire.findAll({
+                where: { projetId: realisationBody.projetId, numeroTranche: realisationBody.numeroTranche }
+            }, { transaction: t })
+
+            articlesToInsert = articlesToInsert.concat(salaires.map((i) => {
                 return {
                     idArticle: i.idSalaire,
                     type: 'Salaire',
                     projetId,
                     numeroTranche: realisationBody.numeroTranche,
                 }
-            }, { transaction: t })
-        )
+            })
+            )
+
+        // await ArticleRealisation.bulkCreate(
+        //     salaires.map((i) => {
+        //         return {
+        //             idArticle: i.idSalaire,
+        //             type: 'Salaire',
+        //             projetId,
+        //             numeroTranche: realisationBody.numeroTranche,
+        //         }
+        //     }, { transaction: t })
+        // )
 
         const chargesExternes = await ChargeExterne.findAll({
             where: { projetId: realisationBody.projetId, numeroTranche: realisationBody.numeroTranche }
         }, { transaction: t })
 
-        await ArticleRealisation.bulkCreate(
-            chargesExternes.map((i) => {
-                return {
-                    idArticle: i.idChargeExterne,
-                    type: 'ChargeExterne',
-                    projetId: projetId,
-                    numeroTranche: realisationBody.numeroTranche,
-                }
-            }, { transaction: t })
+        articlesToInsert = articlesToInsert.concat(chargesExternes.map((i) => {
+            return {
+                idArticle: i.idChargeExterne,
+                type: 'ChargeExterne',
+                projetId: projetId,
+                numeroTranche: realisationBody.numeroTranche,
+            }
+        })
         )
+
+        await ArticleRealisation.bulkCreate(
+            articlesToInsert, { transaction: t })
     })
 
     new SuccessCreationResponse('Realisation créée avec succès').send(res)
@@ -233,70 +258,72 @@ router.patch('/article', jwtVerifyAuth,
 
         let body = {}
 
-        switch (req.body.etat) {
-            case statusArticleRealisation.pending:
-                if (!isSimpleUser(req) || (result.etat != statusArticleRealisation.waiting &&
-                    result.etat != statusArticleRealisation.refused))
-                    throw new UnauthroizedError()
+        await sequelize.transaction(async (t) => {
 
-                body = {
-                    etat: statusArticleRealisation.pending
-                }
+            switch (req.body.etat) {
+                case statusArticleRealisation.pending:
+                    if (!isSimpleUser(req) || (result.etat != statusArticleRealisation.waiting &&
+                        result.etat != statusArticleRealisation.refused))
+                        throw new UnauthroizedError()
 
-                if (!req.body.lienOuFacture)
-                    throw new BadRequestError()
-
-                if (req.body.lienOuFacture === 'lien') {
-                    if (!req.body.lien)
-                        throw new BadRequestError('Lien non fourni')
-                    body.lien = req.body.lien
-                    if (result.facture) {
-                        fileNameToDelete = result.facture.replace(/^\\uploads/g, 'public')
-                        deleteFile(fileNameToDelete)
-                        body.facture = null
+                    body = {
+                        etat: statusArticleRealisation.pending
                     }
-                } else if (req.body.lienOuFacture === 'facture') {
-                    body.lien = null
-                    if (req.file) {
-                        body.facture = sanitizeFileName(req.file.path)
+
+                    if (!req.body.lienOuFacture)
+                        throw new BadRequestError()
+
+                    if (req.body.lienOuFacture === 'lien') {
+                        if (!req.body.lien)
+                            throw new BadRequestError('Lien non fourni')
+                        body.lien = req.body.lien
                         if (result.facture) {
                             fileNameToDelete = result.facture.replace(/^\\uploads/g, 'public')
                             deleteFile(fileNameToDelete)
+                            body.facture = null
                         }
-                    } else {
-                        if (!result.facture)
-                            throw new BadRequestError('Facture non fournie')
+                    } else if (req.body.lienOuFacture === 'facture') {
+                        body.lien = null
+                        if (req.file) {
+                            body.facture = sanitizeFileName(req.file.path)
+                            if (result.facture) {
+                                fileNameToDelete = result.facture.replace(/^\\uploads/g, 'public')
+                                deleteFile(fileNameToDelete)
+                            }
+                        } else {
+                            if (!result.facture)
+                                throw new BadRequestError('Facture non fournie')
+                        }
                     }
-                }
 
-                await result.update(body)
-                break;
-            case statusArticleRealisation.accepted:
-                if (!isAdmin(req) || (result.etat != statusArticleRealisation.pending
-                    && result.etat != statusArticleRealisation.refused))
-                    throw new UnauthroizedError()
+                    await result.update(body, { transaction: t })
+                    break;
+                case statusArticleRealisation.accepted:
+                    if (!isAdmin(req) || (result.etat != statusArticleRealisation.pending
+                        && result.etat != statusArticleRealisation.refused))
+                        throw new UnauthroizedError()
 
-                body = {
-                    etat: statusArticleRealisation.accepted
-                }
-                await result.update(body)
+                    body = {
+                        etat: statusArticleRealisation.accepted
+                    }
+                    await result.update(body, { transaction: t })
 
-                break;
-            case statusArticleRealisation.refused:
-                if (!isAdmin(req) || result.etat != statusArticleRealisation.pending ||
-                    !req.body.message)
-                    throw new UnauthroizedError()
+                    break;
+                case statusArticleRealisation.refused:
+                    if (!isAdmin(req) || result.etat != statusArticleRealisation.pending ||
+                        !req.body.message)
+                        throw new UnauthroizedError()
 
-                body = {
-                    etat: statusArticleRealisation.refused
-                }
+                    body = {
+                        etat: statusArticleRealisation.refused
+                    }
 
-                const message = req.body.message
+                    const message = req.body.message
 
-                if (!message)
-                    throw new BadRequestError('Vous devez spécifier le motif de refus')
+                    if (!message)
+                        throw new BadRequestError('Vous devez spécifier le motif de refus')
 
-                await sequelize.transaction(async (t) => {
+                    // await sequelize.transaction(async (t) => {
 
                     await result.update(body, { transaction: t })
 
@@ -308,18 +335,61 @@ router.patch('/article', jwtVerifyAuth,
                         type: req.body.type,
                         dateMotif: Date.now(),
                     }, { transaction: t })
-                })
+                    // })
 
 
-                //ADD MESSAGE IN TRANSACATION
+                    //ADD MESSAGE IN TRANSACATION
 
-                break;
-            default:
-                break;
-        }
-
+                    break;
+                default:
+                    break;
+            }
+        })
 
         new SuccessResponse(`Succès`).send(res)
+
+    }))
+
+router.patch('/seenByUser/:projetId/:numeroTranche', jwtVerifyAuth,
+    asyncHandler(async (req, res, next) => {
+
+        const projetId = req.params.projetId
+        const numeroTranche = req.params.numeroTranche
+
+        if (!isSimpleUser(req))
+            throw new UnauthroizedError()
+
+        const projet = await Projet.findByPk(projetId, {
+            attributes: ['idProjet'],
+            include: [{
+                model: Realisation, attributes: ['seenByUser'], as: 'realisations', where: {
+                    numeroTranche: numeroTranche
+                }
+            }, { model: Demande, attributes: ['userId'], as: 'demande' }]
+        })
+
+        if (!projet)
+            throw new NotFoundError()
+
+        if (projet.demande.userId !== req.user.idUser)
+            throw new NotFoundError()
+
+        if (projet.realisations.length === 0)
+            throw new NotFoundError()
+
+        if (!projet.realisations[0].seenByUser) {
+            await sequelize.transaction(async t => {
+
+                await Realisation.update({ seenByUser: true }, {
+                    where: {
+                        projetId, numeroTranche
+                    }, transaction: t,
+                    individualHooks: true,
+                })
+            })
+        }
+
+        return new SuccessResponse('Succes').send(res)
 
     }))
 

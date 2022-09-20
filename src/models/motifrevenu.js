@@ -8,18 +8,13 @@ module.exports = (sequelize, DataTypes) => {
     }
   }
   MotifRevenu.init({
-    idRevenu: {
-      autoIncrement: true,
+    idArticleRevenu: {
+      type: DataTypes.INTEGER,
       primaryKey: true,
-      type: DataTypes.INTEGER
-    },
-    contenuMotif: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-    dateMotif: {
-      type: DataTypes.DATE,
-      primaryKey: true,
+      references: {
+        model: 'articlesrevenu',
+        key: 'idArticleRevenu',
+      }
     },
     projetId: {
       type: DataTypes.INTEGER,
@@ -29,6 +24,14 @@ module.exports = (sequelize, DataTypes) => {
         model: 'projets',
         key: 'idProjet',
       },
+    },
+    dateMotif: {
+      type: DataTypes.DATE,
+      primaryKey: true,
+    },
+    contenuMotif: {
+      type: DataTypes.STRING,
+      allowNull: false
     },
     seenByUser: {
       type: DataTypes.BOOLEAN,

@@ -22,9 +22,6 @@ module.exports = (sequelize, DataTypes) => {
         dateCommission: {
             type: DataTypes.DATEONLY,
             allowNull: false,
-            get(){
-                return dayjs(this.getDataValue('dateCommission')).format("DD/MM/YYYY")
-            }
         },
         etat: {
             type: DataTypes.STRING,

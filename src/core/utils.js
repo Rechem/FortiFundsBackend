@@ -134,6 +134,10 @@ const statusPrevision = {
 const statusRealisation = {
     waiting: 'En attente saisie',
     pending: 'En attente évaluation',
+    pendingWaiting : 'En attente évaluation et saisie',
+    evaluatedWaiting : 'Evalué en attente saisie',
+    evaluatedPending : 'Evalué en attente évaluation',
+    evaluated : 'Evalué',
     terminee: 'Terminée',
 }
 
@@ -166,6 +170,12 @@ const statusDemande = {
 const statusTicket = {
     ouvert: 'Ouvert',
     ferme: 'Fermé',
+}
+
+const statusRevenu = {
+    waiting: 'En attente saisie',
+    pending: 'En attente évaluation',
+    evaluated: 'Evalué',
 }
 
 const motifTicket = {
@@ -248,6 +258,7 @@ module.exports = {
     fieldNames,
     statusArticleRevenu,
     statusTicket,
+    statusRevenu,
     motifTicket,
     deleteFile,
     sanitizeFileName,
