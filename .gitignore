@@ -1,2 +1,6 @@
 .env
+src\database\migrations\20220914092057-add_seenByUser_previsions.js
+src\database\migrations\20220914092104-add_seenByUser_realisations.js
+src\database\migrations\20220914102955-add_urgent_projets.js
+src\database\migrations\20220918202225-add-confirmed-banned-field.js
 node_modules/

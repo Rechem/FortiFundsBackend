@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon ./src/index.js"
+    "dev": "nodemon ./src/index.js",
+    "start" : "npm sequelize db:migrate && npm sequelize db:seed:all && node index.js"
   },
   "author": "",
   "license": "ISC",
@@ -25,7 +26,8 @@
     "mysql2": "^2.3.3",
     "nodemailer": "^6.7.8",
     "sequelize": "^6.21.3",
-    "validator": "^13.7.0"
+    "validator": "^13.7.0",
+    "sequelize-cli": "^6.5.1"
   },
   "devDependencies": {
     "nodemon": "^2.0.19"
